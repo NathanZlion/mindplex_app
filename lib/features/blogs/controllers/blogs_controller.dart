@@ -1,24 +1,36 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:get/get.dart';
 import 'package:mindplex/features/blogs/models/blog_model.dart';
+import 'package:mindplex/features/blogs/models/reputation_model.dart';
+import 'package:mindplex/features/blogs/models/social_feed_setting_model.dart';
 import 'package:mindplex/services/api_services.dart';
+import 'package:mindplex/utils/Toster.dart';
+
+import '../../../utils/network/connection-info.dart';
 
 class BlogsController extends GetxController {
   RxBool isLoadingMore = true.obs;
   RxBool newPostTypeLoading = true.obs;
+  RxBool isConnected = true.obs;
+  RxBool canLoadMoreBlogs = true.obs;
 
   RxString recommender = "default".obs;
   RxString post_format = "text".obs;
   RxString post_type = "articles".obs;
   RxInt page = 1.obs;
-  RxInt searchPage = 1.obs;
   RxList<Blog> blogs = <Blog>[].obs;
-  RxList<Blog> popularPosts = <Blog>[].obs;
-  RxList<Blog> searchResults = <Blog>[].obs;
+  RxBool loadingReputation = false.obs;
+  RxBool showSocialFeedForm = true.obs;
 
   RxList<dynamic> topicPostCategories = <dynamic>[].obs;
+  final Rx<SocialFeedSetting> socialFeedSetting =
+      Rx<SocialFeedSetting>(SocialFeedSetting());
 
-  RxString searchQuery = "".obs;
+  ConnectionInfoImpl connectionChecker = Get.find();
+  RxInt startPosition = 0.obs;
 
   final categories = [
     'All',
@@ -48,155 +60,165 @@ class BlogsController extends GetxController {
 
   ScrollController scrollController = ScrollController();
   bool reachedEndOfList = false;
-  ScrollController searchScrollController = ScrollController();
-  bool reachedEndOfListSearch = false;
   final apiSerivice = ApiService().obs;
 
   @override
   void onInit() {
     super.onInit();
 
-    // Future.delayed(Duration(seconds: 5), () {
-    //   fetchBlogs();
-    //   // Your code using anotherController here
-    // });
-
-    // Add a listener to the scrollController to detect when the user reaches the end of the list
     scrollController.addListener(() {
+      if (scrollController.position.userScrollDirection ==
+          ScrollDirection.reverse) {
+        showSocialFeedForm.value = false;
+      } else {
+        showSocialFeedForm.value = true;
+      }
+
       if (!reachedEndOfList &&
           scrollController.position.pixels >=
-              scrollController.position.maxScrollExtent) {
+              scrollController.position.maxScrollExtent - 250) {
         // Load more data
         loadMoreBlogs();
-      }
-    });
-    searchScrollController.addListener(() {
-      if (!reachedEndOfListSearch &&
-          searchScrollController.position.pixels >=
-              searchScrollController.position.maxScrollExtent) {
-        // Load more data
-        loadMoreSearchResults(searchQuery.value);
       }
     });
   }
 
   void loadMoreBlogs() async {
-    if (isLoadingMore.value || reachedEndOfList) {
-      return;
+    try {
+      canLoadMoreBlogs.value = true;
+      if (!await connectionChecker.isConnected) {
+        throw NetworkException(
+            "Looks like there is problem with your connection.");
+      }
+      if (isLoadingMore.value || reachedEndOfList) {
+        return;
+      }
+
+      isLoadingMore.value = true;
+      page.value++; // Increment the page number
+      final res = await apiSerivice.value.loadBlogs(
+          post_type: post_type.value,
+          recommender: recommender.value,
+          post_format: post_format.value,
+          page: page.value.toInt());
+
+      if (res.isEmpty) {
+        reachedEndOfList = true;
+        // Notify the user that there are no more posts for now
+        // You can display a message or handle it in your UI accordingly
+      } else {
+        startPosition.value = blogs.length;
+        blogs.addAll(res);
+
+        loadReputation(res);
+      }
+
+      isLoadingMore.value = false;
+
+      update(); // Trigger UI update
+    } catch (e) {
+      if (e is NetworkException) {
+        canLoadMoreBlogs.value = false;
+      }
     }
-
-    isLoadingMore.value = true;
-    page.value++; // Increment the page number
-    final res = await apiSerivice.value.loadBlogs(
-        post_type: post_type.value,
-        recommender: recommender.value,
-        post_format: post_format.value,
-        page: page.value.toInt());
-
-    if (res.isEmpty) {
-      reachedEndOfList = true;
-      // Notify the user that there are no more posts for now
-      // You can display a message or handle it in your UI accordingly
-    } else {
-      blogs.addAll(res);
-    }
-
-    isLoadingMore.value = false;
-
-    update(); // Trigger UI update
-  }
-
-  void loadMoreSearchResults(String query) async {
-    if (isLoadingMore.value || reachedEndOfListSearch) {
-      return;
-    }
-
-    isLoadingMore.value = true;
-    searchPage.value++; // Increment the page number
-
-    final res = await apiSerivice.value
-        .fetchSearchResponse(query, searchPage.value.toInt());
-
-    if (res.blogs!.isEmpty) {
-      reachedEndOfListSearch = true;
-      // Notify the user that there are no more posts for now
-    } else {
-      searchResults.addAll(res.blogs!);
-    }
-
-    isLoadingMore.value = false;
-
-    update(); // Trigger UI update
   }
 
   void changeTopics({required String topicCategory}) async {
-    print("changing topic");
     print(topicCategory);
     post_format.value = topicCategory;
     page.value = 1;
     fetchBlogs();
   }
 
-  void loadTopics() async {
-    post_type.value = 'topics';
-    recommender.value = 'default';
-    post_format.value = '0';
-    page.value = 1;
-    fetchBlogs();
-    print("IN BLOG CONTROLLER");
-    print(topicPostCategories);
+  String landingPageHeader() {
+    return post_type == 'social'
+        ? "Social Feed"
+        : post_type == 'news'
+            ? "News"
+            : post_type == 'community_content'
+                ? "Community"
+                : post_type == 'topics'
+                    ? "Topics"
+                    : postFormatMaps[post_format.value] ?? "";
   }
 
-  void loadCommunityContents() async {
-    post_type.value = "community_content";
+  void loadContents(String postType, String postFormat) async {
+    post_type.value = postType;
+    post_format.value = postFormat;
     recommender.value = 'default';
-    post_format.value = 'all';
     page.value = 1;
-    fetchBlogs();
-  }
-
-  void loadArticles() async {
-    post_type.value = 'news';
-    post_format.value = 'text';
-    recommender.value = 'default';
-
     fetchBlogs();
   }
 
   void fetchBlogs() async {
-    newPostTypeLoading.value = true;
-    isLoadingMore.value = true;
+    try {
+      isConnected.value = true;
+      if (!await connectionChecker.isConnected) {
+        throw NetworkException(
+            "Looks like there is problem with your connection.");
+      }
+      newPostTypeLoading.value = true;
+      isLoadingMore.value = true;
+      page.value = 1;
+      startPosition.value = 0;
+      final res = await apiSerivice.value.loadBlogs(
+          post_type: post_type.value,
+          recommender: recommender.value,
+          post_format: post_format.value,
+          page: page.value.toInt());
+      if (res.isEmpty) reachedEndOfList = true;
+      blogs.value = res;
+      loadReputation(res);
 
-    final res = await apiSerivice.value.loadBlogs(
-        post_type: post_type.value,
-        recommender: recommender.value,
-        post_format: post_format.value,
-        page: page.value.toInt());
-    if (res.isEmpty) reachedEndOfList = true;
-    blogs.value = res;
-    isLoadingMore.value = false;
-    newPostTypeLoading.value = false;
-  }
-
-  void fetchPopularBlogs() async {
-    final res = await apiSerivice.value.fetchSearchLanding();
-
-    popularPosts.value = res.blogs!;
-    isLoadingMore.value = false;
-  }
-
-  void fetchSearchResults(String query) async {
-    reachedEndOfListSearch = false;
-    isLoadingMore.value = true;
-    searchPage.value = 1;
-    final res = await apiSerivice.value
-        .fetchSearchResponse(query, searchPage.value.toInt());
-    if (res.blogs!.isEmpty) {
-      reachedEndOfListSearch = true;
+      isLoadingMore.value = false;
+      newPostTypeLoading.value = false;
+    } catch (e) {
+      if (e is NetworkException) {
+        isConnected.value = false;
+        Toster(
+            message: 'No Internet Connection', color: Colors.red, duration: 1);
+      }
     }
-    searchResults.value = res.blogs!;
-    searchQuery.value = query;
-    isLoadingMore.value = false;
+  }
+
+  Future<void> loadReputation(List<Blog> fetchedBlogs) async {
+    loadingReputation.value = true;
+
+    try {
+      List<String> slugs =
+          await fetchedBlogs.map((blog) => blog.slug!).toList();
+      slugs.length;
+
+      List<Reputation> reputations =
+          await apiSerivice.value.loadReputation(slugs: slugs);
+
+      assignReputationToBlog(
+          fetchedBlogs: fetchedBlogs, reputations: reputations);
+    } catch (e) {
+      if (e is DioException) {
+        Toster(message: 'Failed To Load Mpxr', color: Colors.red, duration: 3);
+      }
+    }
+
+    loadingReputation.value = false;
+  }
+
+  void assignReputationToBlog({
+    required List<Blog> fetchedBlogs,
+    required List<Reputation> reputations,
+  }) {
+    for (var i = 0; i < fetchedBlogs.length; i++) {
+      for (var j = 0; j < reputations.length; j++) {
+        if (fetchedBlogs[i].slug == reputations[j].postSlug) {
+          fetchedBlogs[i].reputation.value = reputations[j];
+
+          blogs[startPosition.value + i] = fetchedBlogs[i];
+
+          update();
+          break;
+        }
+      }
+    }
   }
 
   void filterBlogsByRecommender({required String category}) {
@@ -231,15 +253,21 @@ class BlogsController extends GetxController {
     fetchBlogs();
   }
 
+  Future<List<dynamic>> getUserInteractions(
+      {required String articleSlug}) async {
+    final interactions =
+        await apiSerivice.value.fetchUserInteractions(articleSlug: articleSlug);
+    return interactions;
+  }
+
+  Future<List<dynamic>> getUserInteraction(
+      {required String articleSlug, required String interactionType}) async {
+    final interactions = await apiSerivice.value.fetchUserInteraction(
+        articleSlug: articleSlug, interactionType: interactionType);
+    return interactions;
+  }
+
   List<Blog> get filteredBlogs {
     return blogs;
-  }
-
-  List<Blog> get popularBlogs {
-    return popularPosts;
-  }
-
-  List<Blog> get searchedBlogs {
-    return searchResults;
   }
 }

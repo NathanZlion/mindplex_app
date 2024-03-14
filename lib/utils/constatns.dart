@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 class AppUrls {
+  static var baseUrlReputation = "https://stagingrep.mindplex.ai";
   static var baseUrl = "https://staging.mindplex.ai/wp-json";
   static var loginUrl = '$baseUrl/auth/v1/token';
+  static var refreshTokenUrl = '$baseUrl/auth/v1/token/refresh';
   static var profileUrl = '$baseUrl/wp/v2/users/profile';
   static var editProfileUrl = '$baseUrl/wp/v2/users/profile';
   static var changePasswordUrl = '$baseUrl/wp/v2/users/change-password';
@@ -17,8 +19,21 @@ class AppUrls {
   static var likeDislike = '$baseUrl/wp/v2/post/like_dislike/';
   static var reactWithEmoji = '$baseUrl/wp/v2/post/react/';
   static var searchLandingUrl = '$baseUrl/mp_rp/v1/search';
+  static var bookmark = '$baseUrl/mp_gl/v1/posts/bookmark/';
+  static var followUrl = '$baseUrl/mp_rp/v1/user/follow';
+  static var unfollowUrl = '$baseUrl/mp_rp/v1/user/unfollow';
+  static var followers = '$baseUrl/mp_rp/v1/user/followers/';
+  static var followings = '$baseUrl/mp_rp/v1/user/followings/';
+  static var blogAddViewUrl = "$baseUrl/mp_rp/post/view_count/";
+  static var draftBaseUrl = "${AppUrls.baseUrl}/mp_up/v1/post/draft/";
+  static var postUrl = "${AppUrls.baseUrl}/mp_up/v1/post/";
+  static var timeSpentUrl = "$baseUrl/mp_rp/post/time_spent";
+  static var userProfileReputation =
+      "${AppUrls.baseUrlReputation}/core/communities/mindplex/users";
 }
 
+var com_id = "e98776e8-32f6-4325-971c-ffc8d1188901";
+var api_key = "HiF2J9gC.U7MOTTOfXdtfRsh9x0wcCM6p3kJWvg9C";
 final List<String> emojiCodes = [
   "128175",
   "128152",
@@ -62,11 +77,14 @@ Map<String, String> codeToEmojiMap = {
   "129326": "🤮",
   "128169": "💩"
 };
+// List<String> bookmarkValue = ['added', 'removed'];
 
 class Keys {
   static final globalkey = GlobalKey<ScaffoldState>();
 }
 
+final longEmptySpace =
+    "                                                            ";
 List<String> countryList = [
   "Afghanistan",
   "Albania",

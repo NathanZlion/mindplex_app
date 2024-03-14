@@ -6,14 +6,15 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get/get.dart' as getxprefix;
 import 'package:get/get_rx/src/rx_types/rx_types.dart';
 import 'package:mindplex/features/blogs/controllers/blogs_controller.dart';
+import 'package:mindplex/features/blogs/models/reputation_model.dart';
+import 'package:mindplex/features/blogs/models/social_feed_setting_model.dart';
 import 'package:mindplex/features/search/models/search_response.dart';
 import 'package:mindplex/features/notification/models/notification_model.dart';
 import 'package:mindplex/features/user_profile_settings/models/user_profile.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../features/authentication/controllers/auth_controller.dart';
 import '../features/blogs/models/blog_model.dart';
-import '../features/comment/models/comment.dart';
+import '../features/comment/models/comment_model.dart';
 import '../utils/constatns.dart';
 import '../features/local_data_storage/local_storage.dart';
 
@@ -49,8 +50,12 @@ class ApiService {
         blogsController.topicPostCategories.value =
             RxList(response.data['categories']);
       }
+
+      if (response.data['settings'] != null) {
+        blogsController.socialFeedSetting.value =
+            SocialFeedSetting.fromJson(response.data['settings']);
+      }
       for (var blog in response.data['post']) {
-        if (blog['interacted_emoji'] == null) blog['interacted_emoji'] = '';
         if (blog["post_type_format"].runtimeType == List) continue;
         ret.add(Blog.fromJson(blog));
       }
@@ -58,6 +63,25 @@ class ApiService {
       throw e.toString();
     }
 
+    return ret;
+  }
+
+  Future<List<Reputation>> loadReputation({required List<String> slugs}) async {
+    var dio = Dio();
+
+    dio.options.headers["com-id"] = com_id;
+    dio.options.headers["x-api-key"] = api_key;
+
+    Response response = await dio.get(
+        "${AppUrls.baseUrlReputation}/core/post_user_detail/?community=mindplex",
+        data: <String, List<String>>{
+          "slug": slugs,
+        });
+
+    var ret = <Reputation>[];
+    for (var reputation in response.data) {
+      ret.add(Reputation.fromJson(reputation));
+    }
     return ret;
   }
 
@@ -72,6 +96,8 @@ class ApiService {
 
     Response response = await dio
         .post("${AppUrls.likeDislike}$articleSlug?like_or_dislike=$interction");
+
+    print('like$response');
   }
 
   Future<void> reactWithEmoji(
@@ -92,6 +118,25 @@ class ApiService {
     print(response.data);
   }
 
+  Future<void> addToBookmark({
+    required String articleSlug,
+    required bool hasBookmarked,
+  }) async {
+    var dio = Dio();
+    Rx<LocalStorage> localStorage =
+        LocalStorage(flutterSecureStorage: FlutterSecureStorage()).obs;
+    final token = await localStorage.value.readFromStorage('Token');
+    dio.options.headers['Authorization'] = "Bearer ${token}";
+
+    Response response = await dio.post(
+      "${AppUrls.bookmark}$articleSlug?",
+      data: <String, String>{
+        "code": "bookmark_posts",
+        "message": hasBookmarked ? 'added' : 'removed',
+      },
+    );
+  }
+
   Future<void> removePreviousInteraction(
       {required String articleSlug, required String interction}) async {
     var dio = Dio();
@@ -105,116 +150,44 @@ class ApiService {
         "${AppUrls.likeDislike}$articleSlug?is_remove=1&like_or_dislike=$interction");
   }
 
-  Future<List<Comment>> fetchComments(
-      {required String post_slug,
-      int page = 1,
-      int perPage = 10,
-      String parent = '0'}) async {
-    var dio = Dio();
+  Future<bool> followUser(String username) async {
+    try {
+      var dio = Dio();
+      Rx<LocalStorage> localStorage =
+          LocalStorage(flutterSecureStorage: FlutterSecureStorage()).obs;
 
-    Rx<LocalStorage> localStorage =
-        LocalStorage(flutterSecureStorage: FlutterSecureStorage()).obs;
-    final token = await localStorage.value.readFromStorage('Token');
+      final token = await localStorage.value.readFromStorage('Token');
 
-    if (authenticationController.isGuestUser.value == false)
       dio.options.headers["Authorization"] = "Bearer ${token}";
-    Response response = await dio.get(
-      '${AppUrls.commentsFetch}/$post_slug/$parent?page=$page&per_page=$perPage',
-    );
-
-    if (response.statusCode == 200) {
-      final responseBody = response.data as List<dynamic>;
-      final comments = responseBody.map((e) => Comment.fromMap(e)).toList();
-      if (parent == '0') {
-        for (Comment comment in comments) {
-          print(comment.content);
-          var replies = await fetchComments(
-              post_slug: post_slug, parent: comment.id.toString());
-          comment.replies = replies;
-        }
+      Response response = await dio.post("${AppUrls.followUrl}/$username");
+      print(response.statusCode);
+      if (response.statusCode == 200) {
+        return true;
       }
-      return comments;
-    } else {
-      throw Exception('Failed to fetch comments from the server.');
+      return false;
+    } catch (e) {
+      print(e);
+      return false;
     }
   }
 
-  Future<Comment> createComment(
-      {required String post_slug,
-      required String content,
-      String parent = '0'}) async {
-    print('CREATING NEW COMMENT');
-    // let's read the email, password, and login_with values from shared preferences.
-    var dio = Dio();
+  Future<bool> unfollowUser(String username) async {
+    try {
+      var dio = Dio();
+      Rx<LocalStorage> localStorage =
+          LocalStorage(flutterSecureStorage: FlutterSecureStorage()).obs;
 
-    Rx<LocalStorage> localStorage =
-        LocalStorage(flutterSecureStorage: FlutterSecureStorage()).obs;
-    final token = await localStorage.value.readFromStorage('Token');
-    dio.options.headers["Authorization"] = "Bearer ${token}";
-/*
-    final SharedPreferences prefs = await SharedPreferences.getInstance();
-    dio.options.headers["Authorization"] = "Bearer ${prefs.getString("token")}";
-    */
-    print('${AppUrls.commentCreate}/$post_slug/$parent');
-    Response response = await dio.post(
-      //'${AppUrls.commentCreate}/$post_slug/$parent',
-      '${AppUrls.commentCreate}/$post_slug/$parent',
-      queryParameters: {
-        'comment_content': "&lt;p&gt;" + content + "&lt;p&gt;",
-      },
-    );
-    if (response.statusCode == 200) {
-      final commentMap = response.data['comment'] as Map<String, dynamic>;
-      final newComment = Comment.fromMap(commentMap);
-      return newComment;
-    } else {
-      throw Exception('Failed to create the comment on the server.');
-    }
-  }
+      final token = await localStorage.value.readFromStorage('Token');
 
-  Future<bool?> updateComment(
-      {required String commentId, required String newContent}) async {
-    var dio = Dio();
-    final SharedPreferences prefs = await SharedPreferences.getInstance();
-    dio.options.headers["Authorization"] = "Bearer ${prefs.getString("token")}";
-    Response response = await dio.patch(
-      '${AppUrls.commentUpdate}/$commentId/?comment_content=$newContent',
-    );
-    if (response.statusCode == 200) {
+      dio.options.headers["Authorization"] = "Bearer ${token}";
+      Response response = await dio.post("${AppUrls.unfollowUrl}/$username");
+      print(response.statusCode);
       return true;
-    } else {
-      throw Exception('Failed to update the comment on the server.');
-    }
-  }
-
-  Future<bool?> commentLikeDislike(String commentId, {bool like = true}) async {
-    /// if the named parameter 'like' is set to false, it's considered as dislike.
-    // this method returns true if the comment is liked/disliked successfully
-    var dio = Dio();
-    final SharedPreferences prefs = await SharedPreferences.getInstance();
-    dio.options.headers["Authorization"] = "Bearer ${prefs.getString("token")}";
-    Response response = await dio.post(
-      "${AppUrls.commentLikeDislike}/$commentId/?like_or_dislike=${like ? 'L' : 'D'}",
-    );
-    if (response.statusCode == 200) {
-      return true;
-    } else {
-      throw Exception('Failed to like/dislike the comment on the server.');
-    }
-  }
-
-  Future<bool?> deleteComment({required int commentId}) async {
-    // this method returns true if the comment is deleted successfully
-    var dio = Dio();
-    final SharedPreferences prefs = await SharedPreferences.getInstance();
-    dio.options.headers["Authorization"] = "Bearer ${prefs.getString("token")}";
-    Response response = await dio.delete(
-      '${AppUrls.commentDelete}/$commentId',
-    );
-    if (response.statusCode == 200) {
-      return true;
-    } else {
-      throw Exception('Failed to delete the comment from the server.');
+    } catch (e) {
+      if (e is DioException) {
+        return true;
+      }
+      return false;
     }
   }
 
@@ -394,6 +367,99 @@ class ApiService {
       return notificationsMap;
     } catch (e) {
       throw e.toString();
+    }
+  }
+
+  Future<List<dynamic>> fetchUserInteractions(
+      {required String articleSlug}) async {
+    var dio = Dio();
+
+    Rx<LocalStorage> localStorage =
+        LocalStorage(flutterSecureStorage: FlutterSecureStorage()).obs;
+    final token = await localStorage.value.readFromStorage('Token');
+
+    if (!authenticationController.isGuestUser.value) {
+      dio.options.headers["Authorization"] = "Bearer $token";
+    }
+    print(articleSlug);
+
+    Response response =
+        await dio.get("${AppUrls.reactWithEmoji}$articleSlug/all/1");
+
+    if (response.statusCode == 200) {
+      final interactions = response.data['interaction'];
+      return interactions;
+    } else {
+      throw Exception('Failed to fetch user interactions from the server.');
+    }
+  }
+
+  Future<List<dynamic>> fetchUserInteraction(
+      {required String articleSlug, required String interactionType}) async {
+    var dio = Dio();
+
+    Rx<LocalStorage> localStorage =
+        LocalStorage(flutterSecureStorage: FlutterSecureStorage()).obs;
+    final token = await localStorage.value.readFromStorage('Token');
+
+    if (!authenticationController.isGuestUser.value) {
+      dio.options.headers["Authorization"] = "Bearer $token";
+    }
+
+    Response response = await dio
+        .get("${AppUrls.reactWithEmoji}$articleSlug/$interactionType/1");
+
+    if (response.statusCode == 200) {
+      final interactions = response.data['interaction'];
+      return interactions;
+    } else {
+      throw Exception('Failed to fetch user interactions from the server.');
+    }
+  }
+
+  Future<List<dynamic>> fetchUserFollowers(
+      {required String username, required int page}) async {
+    var dio = Dio();
+
+    Rx<LocalStorage> localStorage =
+        LocalStorage(flutterSecureStorage: FlutterSecureStorage()).obs;
+    final token = await localStorage.value.readFromStorage('Token');
+
+    if (!authenticationController.isGuestUser.value) {
+      dio.options.headers["Authorization"] = "Bearer $token";
+    }
+    print("${AppUrls.followers}$username/$page");
+    Response response = await dio.get("${AppUrls.followers}$username/$page");
+
+    if (response.statusCode == 200) {
+      final followers = response.data['data'];
+      print(followers);
+      return followers;
+    } else {
+      throw Exception('Failed to fetch user followers from the server.');
+    }
+  }
+
+  Future<List<dynamic>> fetchUserFollowings(
+      {required String username, required int page}) async {
+    var dio = Dio();
+
+    Rx<LocalStorage> localStorage =
+        LocalStorage(flutterSecureStorage: FlutterSecureStorage()).obs;
+    final token = await localStorage.value.readFromStorage('Token');
+
+    if (!authenticationController.isGuestUser.value) {
+      dio.options.headers["Authorization"] = "Bearer $token";
+    }
+    print("${AppUrls.followings}$username/$page");
+    Response response = await dio.get("${AppUrls.followings}$username/$page");
+
+    if (response.statusCode == 200) {
+      final followings = response.data['data'];
+      print(followings);
+      return followings;
+    } else {
+      throw Exception('Failed to fetch user followings from the server.');
     }
   }
 }

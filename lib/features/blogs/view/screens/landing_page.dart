@@ -1,24 +1,22 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_vector_icons/flutter_vector_icons.dart';
+import 'package:flutter/rendering.dart';
 import 'package:get/get.dart';
 import 'package:mindplex/features/authentication/controllers/auth_controller.dart';
 import 'package:mindplex/features/blogs/controllers/blogs_controller.dart';
-import 'package:mindplex/features/blogs/view/screens/blog_detail_page.dart';
-
-import 'package:mindplex/features/mindplex_profile/moderators/view/screens/moderators_page.dart';
-import 'package:mindplex/utils/colors.dart';
-import 'package:shimmer_effect/shimmer_effect.dart';
+import 'package:mindplex/features/blogs/view/widgets/social_feed_card.dart';
+import 'package:mindplex/features/user_profile_displays/controllers/DraftedPostsController.dart';
+import 'package:mindplex/utils/no_internet_card_widget.dart';
 
 import '../../../drawer/view/widgets/top_user_profile_icon.dart';
 import '../widgets/blog_card.dart';
 import '../widgets/blog_shimmer.dart';
+import '../widgets/community_content_tabbar.dart';
+import '../widgets/default_tabbar.dart';
 import '../widgets/post_topic_widget.dart';
 import '../../../user_profile_displays/controllers/user_profile_controller.dart';
-import '../../../../utils/constatns.dart';
-import '../../../../routes/app_routes.dart';
-import '../../../drawer/view/widgets/drawer_widget.dart';
+import '../widgets/social_feed_post_form_widget.dart';
 
 class LandingPage extends StatefulWidget {
   LandingPage({super.key});
@@ -37,11 +35,14 @@ class _LandingPageState extends State<LandingPage>
 
   AuthController authController = Get.find();
 
+  DraftedPostsController draftedPostsController = Get.find();
+
   late TabController _tabController;
   late TabController _tabController2;
   @override
   void initState() {
     super.initState();
+    blogsController.fetchBlogs();
     _tabController = TabController(length: 4, vsync: this);
     _tabController.addListener(() {
       String category = blogsController.categories[_tabController.index];
@@ -61,11 +62,8 @@ class _LandingPageState extends State<LandingPage>
   @override
   Widget build(BuildContext context) {
     profileController.getAuthenticatedUser();
-
     _tabController.index = 0;
     _tabController2.index = 0;
-
-    blogsController.fetchBlogs();
 
     var width = MediaQuery.of(context).size.width;
     var height = MediaQuery.of(context).size.height;
@@ -81,174 +79,176 @@ class _LandingPageState extends State<LandingPage>
           SizedBox(
             height: 20,
           ),
-          Container(
-            height: 100,
+          // section for displaying user
+          Material(
+            color: Color(0xFF0c2b46),
+            elevation: 10,
             child: Padding(
-              padding: const EdgeInsets.only(left: 15.0),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
+              padding: const EdgeInsets.all(8.0),
+              child: Column(
                 children: [
-                  TopUserProfileIcon(
-                      profileController: profileController,
-                      authController: authController),
-                  SizedBox(
-                    width: width * 0.14,
-                  ),
-                  Obx(() => Container(
-                        width: width * 0.40,
-                        child: Center(
-                          child: Text(
-                              blogsController.post_type == 'news'
-                                  ? "News"
-                                  : blogsController.post_type ==
-                                          'community_content'
-                                      ? "Community"
-                                      : blogsController.post_type == 'topics'
-                                          ? "Topics"
-                                          : blogsController.postFormatMaps[
-                                                  blogsController
-                                                      .post_format.value] ??
-                                              "",
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 25,
-                                  color: Colors.white)),
+                  Container(
+                    child: Column(
+                      children: [
+                        Container(
+                          height: height * 0.15,
+                          padding: const EdgeInsets.only(left: 15.0),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              TopUserProfileIcon(
+                                  profileController: profileController,
+                                  authController: authController),
+                              SizedBox(
+                                width: width * 0.14,
+                              ),
+                              Obx(() => Container(
+                                    width: width * 0.40,
+                                    child: Center(
+                                      child: Text(
+                                          blogsController.landingPageHeader(),
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 25,
+                                              color: Colors.white)),
+                                    ),
+                                  )),
+                            ],
+                          ),
                         ),
-                      )),
+
+                        // section for making a post to social feed .
+                        Obx(() => blogsController.post_type == 'social' &&
+                                blogsController.showSocialFeedForm.value
+                            ? SocialFeedForm(
+                                draftedPostsController: draftedPostsController,
+                                editingDraft: draftedPostsController
+                                    .editingSocialPostDraft.value,
+                              )
+                            : SizedBox.shrink()),
+                      ],
+                    ),
+                  ),
+
+                  // top navigation bar
+
+                  // this section shows list of topics to be selected by a user
+                  Obx(() => blogsController.post_type == 'topics'
+                      ? Column(
+                          children: [
+                            SizedBox(
+                              height: 20,
+                            ),
+                            PostTopics(blogsController: blogsController),
+                          ],
+                        )
+                      : SizedBox.shrink()),
+                  SizedBox(
+                    height: 10,
+                  ),
+
+                  //  for social feed we dont have tab bar for selecting post format
+                  Obx(
+                    () => blogsController.post_type != 'social'
+                        ? Padding(
+                            padding: const EdgeInsets.all(5.0),
+                            child: Container(
+                              alignment: Alignment.centerLeft,
+                              height: 30,
+                              decoration: BoxDecoration(
+                                color: Color.fromARGB(50, 118, 118, 128),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Obx(
+                                () => blogsController.post_type !=
+                                        'community_content'
+                                    ? DefaultTabBar(
+                                        blogsController: blogsController,
+                                        tabController: _tabController)
+                                    : CommunityContentTabBar(
+                                        blogsController: blogsController,
+                                        tabController2: _tabController2),
+                              ),
+                            ),
+                          )
+                        : SizedBox.shrink(),
+                  ),
                 ],
               ),
             ),
           ),
-
-          // top navigation bar
-
-          Obx(() => blogsController.post_type == 'topics'
-              ? Column(
-                  children: [
-                    SizedBox(
-                      height: 20,
-                    ),
-                    PostTopics(blogsController: blogsController),
-                  ],
-                )
-              : SizedBox.shrink()),
-          SizedBox(
-            height: 10,
-          ),
-          Padding(
-            padding: const EdgeInsets.all(5.0),
-            child: Container(
-              alignment: Alignment.centerLeft,
-              height: 35,
-              decoration: BoxDecoration(
-                color: Color.fromARGB(50, 118, 118, 128),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Obx(
-                () => blogsController.post_type != 'community_content'
-                    ? TabBar(
-                        isScrollable: false,
-                        dividerColor: Colors.grey,
-                        indicator: BoxDecoration(
-                            borderRadius: BorderRadius.circular(15),
-                            color: blogsController.post_format == 'text'
-                                ? Color(0xFF8aa7da)
-                                : blogsController.post_format == 'video'
-                                    ? Color.fromARGB(239, 203, 141, 141)
-                                    : blogsController.post_format == "listen"
-                                        ? const Color.fromARGB(
-                                            255, 131, 235, 100)
-                                        : const Color.fromARGB(
-                                            255, 131, 235, 100)
-                            // color: const Color.fromARGB(255, 49, 153, 167),
-                            ),
-                        indicatorColor: Colors.green,
-                        controller: _tabController,
-                        unselectedLabelStyle:
-                            TextStyle(fontWeight: FontWeight.w300),
-                        tabs: [
-                            Tab(
-                              text: "All",
-                            ),
-                            Tab(text: "Popular"),
-                            Tab(text: "Most Recent"),
-                            Tab(text: "Trending"),
-                          ])
-                    : TabBar(
-                        isScrollable: true,
-                        dividerColor: Colors.grey,
-                        indicator: BoxDecoration(
-                            borderRadius: BorderRadius.circular(15),
-                            color: blogsController.post_format == 'text'
-                                ? Color(0xFF8aa7da)
-                                : blogsController.post_format == 'video'
-                                    ? Color.fromARGB(239, 203, 141, 141)
-                                    : blogsController.post_format == "listen"
-                                        ? const Color.fromARGB(
-                                            255, 131, 235, 100)
-                                        : const Color.fromARGB(
-                                            255, 131, 235, 100)
-                            // color: const Color.fromARGB(255, 49, 153, 167),
-                            ),
-                        indicatorColor: Colors.green,
-                        controller: _tabController2,
-                        unselectedLabelStyle:
-                            TextStyle(fontWeight: FontWeight.w300),
-                        tabs: [
-                            Tab(
-                              text: "All",
-                            ),
-                            Tab(text: "Popular"),
-                            Tab(text: "Most Recent"),
-                            Tab(text: "Trending"),
-                            Tab(text: "Article"),
-                            Tab(text: "Video"),
-                            Tab(text: "Podcast"),
-                          ]),
-              ),
-            ),
-          ),
-
           Obx(() {
-            return (blogsController.isLoadingMore.value == true &&
-                        isIntialLoading) ||
-                    blogsController.newPostTypeLoading.value
-                ? Expanded(
-                    child: ListView.builder(
-                      itemCount: 5,
-                      itemBuilder: (ctx, inx) => const BlogSkeleton(),
-                    ),
-                  )
-                : Expanded(
-                    child: ListView.builder(
-                        controller: blogsController.scrollController,
-                        itemCount: blogsController.filteredBlogs.length + 1,
-                        itemBuilder: (ctx, index) {
-                          if (index < blogsController.filteredBlogs.length) {
-                            final thumbnailUrl = blogsController
-                                .filteredBlogs[index].thumbnailImage;
-                            isIntialLoading = false;
-                            final isDefaultThumbnail =
-                                thumbnailUrl == "default.jpg";
-                            return BlogCard(
-                                blogsController: blogsController, index: index);
-                          } else {
-                            print("executing else statement");
-                            if (index == blogsController.filteredBlogs.length &&
-                                !blogsController.reachedEndOfList) {
-                              // Display CircularProgressIndicator under the last card
-                              return ListView.builder(
-                                physics: NeverScrollableScrollPhysics(),
-                                shrinkWrap: true,
-                                itemCount: 5,
-                                itemBuilder: (ctx, inx) => const BlogSkeleton(),
-                              );
-                            } else {
-                              return Container(); // Return an empty container otherwise
-                            }
-                          }
-                        }),
-                  );
+            return !blogsController.isConnected.value
+                ? noInternetCard(() {
+                    blogsController.fetchBlogs();
+                  })
+                : (blogsController.isLoadingMore.value == true &&
+                            isIntialLoading) ||
+                        blogsController.newPostTypeLoading.value
+                    ? Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                          child: ListView.builder(
+                            itemCount: 5,
+                            itemBuilder: (ctx, inx) => const BlogSkeleton(),
+                          ),
+                        ),
+                      )
+                    : Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                          child: RefreshIndicator(
+                            color: Colors.green,
+                            onRefresh: () async {
+                              blogsController.fetchBlogs();
+                            },
+                            child: ListView.builder(
+                                controller: blogsController.scrollController,
+                                itemCount:
+                                    blogsController.filteredBlogs.length + 1,
+                                itemBuilder: (ctx, index) {
+                                  if (index <
+                                      blogsController.filteredBlogs.length) {
+                                    isIntialLoading = false;
+                                    return blogsController.post_type != 'social'
+                                        ? BlogCard(
+                                            blogsController: blogsController,
+                                            index: index)
+                                        : SocialFeedCard(
+                                            blogsController: blogsController,
+                                            index: index);
+                                  } else {
+                                    print("executing else statement");
+                                    if (index ==
+                                            blogsController
+                                                .filteredBlogs.length &&
+                                        !blogsController.reachedEndOfList) {
+                                      // Display CircularProgressIndicator under the last card
+                                      return Obx(() => !blogsController
+                                              .canLoadMoreBlogs.value
+                                          ? Container(
+                                              margin:
+                                                  EdgeInsets.only(bottom: 50),
+                                              child: noInternetCard(() {
+                                                blogsController.loadMoreBlogs();
+                                              }),
+                                            )
+                                          : ListView.builder(
+                                              physics:
+                                                  NeverScrollableScrollPhysics(),
+                                              shrinkWrap: true,
+                                              itemCount: 1,
+                                              itemBuilder: (ctx, inx) =>
+                                                  const BlogSkeleton(),
+                                            ));
+                                    } else {
+                                      return Container(); // Return an empty container otherwise
+                                    }
+                                  }
+                                }),
+                          ),
+                        ),
+                      );
           })
         ],
       ),

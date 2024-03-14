@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:mindplex/features/authentication/controllers/auth_controller.dart';
+import 'package:mindplex/features/blogs/models/reputation_model.dart';
+import 'package:mindplex/features/blogs/view/widgets/interaction_statistics_widget.dart';
+import 'package:mindplex/utils/colors.dart';
 
 import '../../controllers/blogs_controller.dart';
 import '../../../../routes/app_routes.dart';
@@ -72,16 +75,25 @@ class BlogCard extends StatelessWidget {
                                       .filteredBlogs[index].authorDisplayName ??
                                   "",
                               style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold),
-                            ),
-                            Text(
-                              blogsController
-                                      .filteredBlogs[index].authorUsername ??
-                                  "",
-                              style: TextStyle(
-                                color: Color.fromARGB(255, 123, 122, 122),
+                                color: titleTextColor,
                               ),
+                            ),
+                            Obx(
+                              () => blogsController.loadingReputation.value &&
+                                      index >=
+                                          blogsController.startPosition.value
+                                  ? Container(
+                                      width: 13,
+                                      height: 13,
+                                      child: CircularProgressIndicator(
+                                        color: Colors.green[300],
+                                      ))
+                                  : Text(
+                                      " MPXR ${blogsController.filteredBlogs[index].reputation.value != null ? blogsController.filteredBlogs[index].reputation.value!.author!.mpxr!.toStringAsFixed(2) : "-"}",
+                                      style: TextStyle(
+                                          color: titleTextColor,
+                                          fontWeight: FontWeight.bold),
+                                    ),
                             ),
                             Text(
                               blogsController
@@ -97,28 +109,56 @@ class BlogCard extends StatelessWidget {
                             )
                           ],
                         ),
+                        SizedBox(
+                          height: 8,
+                        ),
                         Text(
                             style: TextStyle(
-                                color: Colors.white,
+                                color: titleTextColor,
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold),
                             blogsController.filteredBlogs[index].postTitle ??
                                 ""),
                         SizedBox(
-                          height: 10,
+                          height: 13,
                         ),
                         Text(
-                            style: TextStyle(
-                              color: Colors.white,
-                            ),
-                            blogsController.filteredBlogs[index].overview ??
-                                ""),
+                          blogsController.filteredBlogs[index].overview ?? "",
+                          style: TextStyle(
+                              color: bodyTextColor,
+                              fontWeight: FontWeight.w300),
+                        ),
                         SizedBox(
-                          height: 10,
+                          height: 13,
                         ),
-                        Text(
-                          blogsController.filteredBlogs[index].minToRead ?? "",
-                          style: TextStyle(color: Colors.white),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              blogsController.filteredBlogs[index].minToRead ??
+                                  "",
+                              style: TextStyle(
+                                  color: bodyTextColor,
+                                  fontWeight: FontWeight.w300),
+                            ),
+                            Obx(
+                              () => blogsController.loadingReputation.value &&
+                                      index >=
+                                          blogsController.startPosition.value
+                                  ? Container(
+                                      width: 13,
+                                      height: 13,
+                                      child: CircularProgressIndicator(
+                                        color: Colors.green[300],
+                                      ))
+                                  : Text(
+                                      " MPXR ${blogsController.filteredBlogs[index].reputation.value != null ? blogsController.filteredBlogs[index].reputation.value!.postRep!.toStringAsFixed(5) : "-"}",
+                                      style: TextStyle(
+                                          color: titleTextColor,
+                                          fontWeight: FontWeight.bold),
+                                    ),
+                            ),
+                          ],
                         ),
                         SizedBox(
                           height: 5,
@@ -130,12 +170,25 @@ class BlogCard extends StatelessWidget {
                                   border: Border.all(color: Colors.white),
                                   borderRadius:
                                       BorderRadius.all(Radius.circular(10)),
-                                  image: DecorationImage(
-                                      fit: BoxFit.cover,
-                                      image: NetworkImage(blogsController
+                                  image: blogsController.filteredBlogs[index]
+                                              .thumbnailImage ==
+                                          "default.jpg"
+                                      ? blogsController.filteredBlogs[index]
+                                                  .postTypeFormat ==
+                                              "text"
+                                          ? DecorationImage(
+                                              fit: BoxFit.cover,
+                                              image: AssetImage(
+                                                  "assets/images/img_not_found_text.png"))
+                                          : DecorationImage(
+                                              fit: BoxFit.cover,
+                                              image: AssetImage(
+                                                  "assets/images/image_not_found_podcast.png"))
+                                      : DecorationImage(
+                                          fit: BoxFit.cover,
+                                          image: NetworkImage(blogsController
                                               .filteredBlogs[index]
-                                              .thumbnailImage ??
-                                          ""))),
+                                              .thumbnailImage!))),
                               height: 170,
                               width: 400,
                             ),
@@ -194,85 +247,10 @@ class BlogCard extends StatelessWidget {
                         SizedBox(
                           height: 5,
                         ),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Row(
-                              children: [
-                                GestureDetector(
-                                  onTap: () {
-                                    //  like logic will be here
-                                  },
-                                  child: Icon(
-                                    color: Colors.white,
-                                    Icons.thumb_up_off_alt_outlined,
-                                  ),
-                                ),
-                                SizedBox(
-                                  width: 3,
-                                ),
-                                Text(
-                                  blogsController.filteredBlogs[index].likes
-                                          .toString() +
-                                      " Likes",
-                                  style: TextStyle(color: Colors.white),
-                                ),
-                              ],
-                            ),
-                            Row(
-                              children: [
-                                GestureDetector(
-                                  onTap: () {
-                                    //  share logic will be here
-                                  },
-                                  child: Icon(
-                                    color: Colors.white,
-                                    Icons.share_outlined,
-                                  ),
-                                ),
-                                SizedBox(
-                                  width: 3,
-                                ),
-                              ],
-                            ),
-                            Row(
-                              children: [
-                                Icon(
-                                  color: Colors.white,
-                                  Icons.mode_comment_outlined,
-                                ),
-                                SizedBox(
-                                  width: 3,
-                                ),
-                                Text(
-                                  blogsController.filteredBlogs[index].comments
-                                          .toString() +
-                                      " comments",
-                                  style: TextStyle(color: Colors.white),
-                                ),
-                              ],
-                            ),
-                            Row(
-                              children: [
-                                GestureDetector(
-                                  onTap: () {
-                                    //  dislike logic will be here
-                                  },
-                                  child: Icon(
-                                    color: Colors.white,
-                                    Icons.thumb_down_off_alt_outlined,
-                                  ),
-                                ),
-                                SizedBox(
-                                  width: 3,
-                                ),
-                                Text(
-                                  "Dislike",
-                                  style: TextStyle(color: Colors.white),
-                                ),
-                              ],
-                            ),
-                          ],
+                        InteractionStatistics(
+                          blogsController: blogsController,
+                          index: index,
+                          buttonsInteractive: false,
                         )
                       ],
                     ),
@@ -280,10 +258,14 @@ class BlogCard extends StatelessWidget {
                 )
               ],
             ),
-            Divider(
-              color: Colors.white,
-              thickness: 1,
+
+            SizedBox(
+              height: 20,
             )
+            // Divider(
+            //   color: Colors.white,
+            //   thickness: 1,
+            // )
           ],
         ),
       ),

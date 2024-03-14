@@ -1,68 +1,70 @@
 import 'dart:convert';
-import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get/get.dart';
 import 'package:mindplex/features/authentication/models/auth_model.dart';
+import 'package:mindplex/features/user_profile_displays/models/user_profile_reputation_model.dart';
+import 'package:mindplex/features/user_profile_displays/services/profileServices.dart';
+
 import 'package:mindplex/features/user_profile_settings/models/user_profile.dart';
 import 'package:mindplex/services/api_services.dart';
 import 'package:mindplex/features/local_data_storage/local_storage.dart';
+import 'package:mindplex/utils/Toster.dart';
 
+import '../../../utils/network/connection-info.dart';
 import '../../authentication/controllers/auth_controller.dart';
 import '../../../utils/unkown_models/popularModel.dart';
-import '../view/screens/about_screen.dart';
-import '../view/screens/bookmark_screen.dart';
-import '../view/screens/draft_screen.dart';
 
 class ProfileController extends GetxController {
+  @override
+  void onInit() {
+    super.onInit();
+    // fetchBlogs();
+  }
+
   Rx<AuthModel> authenticatedUser = Rx<AuthModel>(AuthModel());
   RxString selectedTabCategory = "About".obs;
   RxBool isLoading = false.obs;
+  RxBool isLoadingReputation = false.obs;
   RxString selectedBlogCategory = "Popular".obs;
   RxList<PopularDetails> blogs = <PopularDetails>[].obs;
   RxBool isWalletConnected = false.obs;
+  RxList followers = [].obs;
+  RxList followings = [].obs;
+  RxBool isLoadingFollowers = false.obs;
+  RxBool isLoadingFollowings = false.obs;
+  RxBool firstTimeLoading = true.obs;
+  RxBool firstTimeLoadingFollowings = true.obs;
+  RxBool isConnected = true.obs;
+
+  RxInt page = 0.obs;
+  RxInt followingsPage = 0.obs;
+  RxBool reachedEndofFollowers = false.obs;
+  RxBool reachedEndofFollowings = false.obs;
 
   Rx<UserProfile> userProfile = Rx<UserProfile>(UserProfile());
 
   final apiService = ApiService().obs;
 
+  final userProfileApiService = ProfileServices().obs;
+
   AuthController authController = Get.find();
 
-  var screens = [
-    {'name': 'About', 'active': true, 'widget': const AboutScreen(), "num": 1},
-    {
-      'name': 'Published Content',
-      "active": false,
-      'widget': const BookmarkScreen(),
-      "num": 2
-    },
-    {
-      'name': 'Bookmarks',
-      "active": false,
-      'widget': const BookmarkScreen(),
-      "num": 2
-    },
-    {'name': 'Drafts', "active": false, 'widget': const DraftScreen(), "num": 3}
-  ];
+  ConnectionInfoImpl connectionChecker = Get.find();
 
-  ScrollController searchScrollController = ScrollController();
-  bool reachedEndOfListSearch = false;
-  RxList<UserProfile> searchResults = <UserProfile>[].obs;
-  RxString searchQuery = "".obs;
-  RxInt searchPage = 1.obs;
+  void resetFollowers() {
+    followers.clear();
+    isLoadingFollowings.value = false;
+    page.value = 0;
+    reachedEndofFollowers.value = false;
+  }
 
-  @override
-  void onInit() {
-    super.onInit();
-    fetchBlogs();
-    searchScrollController.addListener(() {
-      if (!reachedEndOfListSearch &&
-          searchScrollController.position.pixels >=
-              searchScrollController.position.maxScrollExtent) {
-        // Load more data
-        loadMoreSearchResults(searchQuery.value);
-      }
-    });
+  void resetFollowings() {
+    followings.clear();
+    isLoadingFollowers.value = false;
+    followingsPage.value = 0;
+    reachedEndofFollowings.value = false;
   }
 
   void switchWallectConnectedState() {
@@ -83,75 +85,71 @@ class ProfileController extends GetxController {
   }
 
   Future<void> getUserProfile({required String username}) async {
-    isLoading.value = true;
-    final res = await apiService.value.fetchUserProfile(userName: username);
-    userProfile.value = res;
-    isLoading.value = false;
-  }
-
-  void fetchSearchResults(String query) async {
-    reachedEndOfListSearch = false;
-    isLoading.value = true;
-    searchPage.value = 1;
-    final res = await apiService.value
-        .fetchSearchResponse(query, searchPage.value.toInt());
-    if (res.users!.isEmpty) {
-      reachedEndOfListSearch = true;
+    if (userProfile.value.username != username) {
+      resetFollowers();
+      resetFollowings();
     }
-    searchResults.value = res.users!;
-    searchQuery.value = query;
-    isLoading.value = false;
-  }
+    try {
+      isLoading.value = true;
+      isConnected.value = true;
+      if (!await connectionChecker.isConnected) {
+        throw NetworkException(
+            "Looks like there is problem with your connection.");
+      }
 
-  void loadMoreSearchResults(String query) async {
-    if (isLoading.value || reachedEndOfListSearch) {
-      return;
+      final res = await apiService.value.fetchUserProfile(userName: username);
+      res.username = username;
+      userProfile.value = res;
+      isLoading.value = false;
+      //  start reputation loading indicator
+      isLoadingReputation.value = true;
+      final userProfileReputation =
+          await getUserReputation(userId: res.userId!);
+      res.mpxr = userProfileReputation.mpxr!.toDouble();
+
+      userProfile.value = res;
+
+      isLoadingReputation.value = false;
+      //  end loading indicator and show it on the front end
+    } catch (e) {
+      if (e is NetworkException) {
+        isConnected.value = false;
+        Toster(
+            message: 'No Internet Connection', color: Colors.red, duration: 1);
+      }
     }
-
-    isLoading.value = true;
-    searchPage.value++; // Increment the page number
-
-    final res = await apiService.value
-        .fetchSearchResponse(query, searchPage.value.toInt());
-
-    if (res.users!.isEmpty) {
-      reachedEndOfListSearch = true;
-      // Notify the user that there are no more posts for now
-    } else {
-      searchResults.addAll(res.users!);
-    }
-
-    isLoading.value = false;
-
-    update(); // Trigger UI update
   }
 
-  void fetchBlogs() async {
-    final jsondata = await rootBundle.loadString('assets/demoAPI.json');
+  Future<UserProfileReputation> getUserReputation({required int userId}) async {
+    UserProfileReputation userProfileReputation =
+        await userProfileApiService.value.getUserReputation(userId: userId);
 
-    final List<dynamic> populars = await jsonDecode(jsondata);
-
-    List<PopularDetails> popularDetail = [];
-    populars.forEach((jsonCategory) {
-      PopularDetails popularCategory = PopularDetails.fromJson(jsonCategory);
-      popularDetail.add(popularCategory);
-    });
-
-    blogs.value = popularDetail;
-    isLoading.value = false;
+    return userProfileReputation;
   }
 
-  void filterBlogsByCategory({required String category}) {
-    selectedBlogCategory.value = category;
+  Future<void> fetchFollowers({required String username}) async {
+    isLoadingFollowers.value = true;
+    page.value += 1;
+
+    List<dynamic> fetchedFollowers = await apiService.value
+        .fetchUserFollowers(page: page.value, username: username);
+
+    followers.addAll(fetchedFollowers);
+    if (fetchedFollowers.length < 10) reachedEndofFollowers.value = true;
+    isLoadingFollowers.value = false;
+    firstTimeLoading.value = false;
   }
 
-  List<PopularDetails> get filteredBlogs {
-    return blogs
-        .where((blog) => blog.type == selectedBlogCategory.value)
-        .toList();
-  }
+  Future<void> fetchFollowings({required String username}) async {
+    isLoadingFollowings.value = true;
+    followingsPage.value += 1;
 
-  List<UserProfile> get searchedUsers {
-    return searchResults;
+    List<dynamic> fetchedFollowings = await apiService.value
+        .fetchUserFollowings(page: followingsPage.value, username: username);
+
+    followings.addAll(fetchedFollowings);
+    if (fetchedFollowings.length < 10) reachedEndofFollowings.value = true;
+    isLoadingFollowings.value = false;
+    firstTimeLoadingFollowings.value = false;
   }
 }

@@ -1,97 +1,76 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:mindplex/features/user_profile_displays/controllers/user_profile_controller.dart';
-import 'package:mindplex/utils/colors.dart';
+import 'package:mindplex/features/blogs/view/screens/blog_detail_page.dart';
+import 'package:mindplex/features/user_profile_displays/view/widgets/blog_card.dart';
+import 'package:mindplex/features/user_profile_displays/controllers/bookmarksController.dart';
 
-class BookmarkScreen extends StatefulWidget {
-  const BookmarkScreen({super.key});
+import 'package:mindplex/features/blogs/view/widgets/blog_shimmer.dart';
+import "../../../../utils/status.dart";
 
-  @override
-  State<BookmarkScreen> createState() {
-    return _BookmarkScreen();
-  }
-}
+class BookmarkScreen extends StatelessWidget {
+  BookmarkScreen({super.key});
 
-class _BookmarkScreen extends State<BookmarkScreen> {
-  List _posts = [];
-
-  Future<void> loadData() async {
-    final String response =
-        await rootBundle.loadString('assets/bookmarkAPI.json');
-    final data = await json.decode(response);
-    setState(() {
-      _posts = data['items'];
-      print('number of items: ${_posts.length}');
-    });
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    loadData();
-  }
-
-  ProfileController profileController = Get.put(ProfileController());
+  BookmarksController bookmarksController = Get.find();
   @override
   Widget build(BuildContext context) {
-    return ListView.separated(
-        itemCount: _posts.length,
-        separatorBuilder: (context, index) => SizedBox(height: 10),
-        itemBuilder: (context, index) {
-          var current = _posts[index];
-          return Container(
-            padding: EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(26),
-              color: blogContainerColor,
-            ),
-            height: 250,
-            width: 140,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  current['date'] ?? "",
-                  style: TextStyle(color: Colors.white),
-                ),
-                SizedBox(
-                  height: 10,
-                ),
-                Text(
-                  current['title'] ?? "",
-                  style: TextStyle(
-                    color: Color.fromARGB(255, 97, 255, 213),
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                SizedBox(
-                  height: 10,
-                ),
-                Expanded(
-                    child: Text(
-                  current['description'] ?? "",
-                  style: TextStyle(color: Colors.white),
-                )),
-                Row(
-                  children: [
-                    Text(
-                      current['lastseen'] ?? "",
-                      style: TextStyle(color: Colors.white),
-                    ),
-                    Text(
-                      current['views'] ?? "",
-                      style: TextStyle(color: Colors.white),
-                    )
-                  ],
-                )
-              ],
-            ),
-          );
-        });
+    return Container(
+      child: Obx(() {
+        return bookmarksController.status == Status.loading
+            ? ListView.builder(
+                itemCount: 3,
+                itemBuilder: (ctx, inx) => const BlogSkeleton(),
+              )
+            : bookmarksController.status == Status.error
+                ? Center(
+                    child: Icon(Icons.error),
+                  )
+                : Column(children: [
+                    Expanded(
+                        child: RefreshIndicator(
+                      color: Colors.green,
+                      onRefresh: () async {
+                        bookmarksController.loadBlogs();
+                      },
+                      child: ListView.separated(
+                          controller:
+                              bookmarksController.bookMarkScorllController,
+                          itemCount: bookmarksController.blogs.length + 1,
+                          separatorBuilder: (context, index) =>
+                              SizedBox(height: 10),
+                          itemBuilder: (context, index) {
+                            if (bookmarksController.status ==
+                                    Status.loadingMore &&
+                                index == bookmarksController.blogs.length) {
+                              return ListView.builder(
+                                physics: NeverScrollableScrollPhysics(),
+                                shrinkWrap: true,
+                                itemCount: 3,
+                                itemBuilder: (ctx, inx) => const BlogSkeleton(),
+                              );
+                            } else if (bookmarksController.status !=
+                                    Status.loadingMore &&
+                                index == bookmarksController.blogs.length) {
+                              return SizedBox(height: 10);
+                            }
+
+                            return GestureDetector(
+                              onTap: () {
+                                Get.to(DetailsPage(
+                                    index: index,
+                                    details: bookmarksController.blogs[index]));
+                              },
+                              child: BlogCard(
+                                  blog: bookmarksController.blogs[index],
+                                  index: index),
+                            );
+                          }),
+                    )),
+                  ]);
+      }),
+    );
   }
 }
+
+
+// email: email@mindplex.ai
+// password: QQ!!qq11QQ!!qq11

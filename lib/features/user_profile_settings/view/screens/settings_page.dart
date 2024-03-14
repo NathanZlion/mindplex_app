@@ -6,12 +6,14 @@ import 'package:image_picker/image_picker.dart';
 import 'package:mindplex/features/authentication/controllers/auth_controller.dart';
 
 import 'package:mindplex/features/user_profile_displays/controllers/user_profile_controller.dart';
+import 'package:mindplex/features/user_profile_settings/controllers/settings_controller.dart';
 import 'package:mindplex/features/user_profile_settings/view/screens/personal_settings.dart';
 import 'package:mindplex/features/user_profile_settings/view/screens/preference.dart';
 import 'package:mindplex/features/user_profile_settings/view/screens/recommendation.dart';
 
 import '../../../../routes/app_routes.dart';
 import '../../../../utils/colors.dart';
+import '../../../../utils/no_internet_card_widget.dart';
 import 'change_password.dart';
 import 'general_settings.dart';
 
@@ -32,6 +34,7 @@ class _SettingsPage extends State<SettingsPage>
   void initState() {
     super.initState();
     _tabController = TabController(length: 5, vsync: this);
+    settingsController.fetchUserInfo(profileController.authenticatedUser.value.username!);
   }
 
   @override
@@ -44,13 +47,10 @@ class _SettingsPage extends State<SettingsPage>
 
   ProfileController profileController = Get.put(ProfileController());
 
+  SettingsController settingsController = Get.put(SettingsController());
+
   @override
   Widget build(BuildContext context) {
-    profileController.getAuthenticatedUser();
-    final firstName =
-        profileController.authenticatedUser.value.firstName ?? " ";
-    final userEmail =
-        profileController.authenticatedUser.value.userEmail ?? " ";
     return Scaffold(
       backgroundColor: mainBackgroundColor,
       body: Column(
@@ -132,7 +132,10 @@ class _SettingsPage extends State<SettingsPage>
               ),
             ),
           ),
-          Expanded(
+          Obx(() => !profileController.isConnected.value?
+          noInternetCard(() {
+            profileController.getUserProfile(username:profileController.authenticatedUser.value.username!);
+          }):Expanded(
             child: TabBarView(
               controller: _tabController,
               children: [
@@ -147,7 +150,7 @@ class _SettingsPage extends State<SettingsPage>
                 PreferencePage()
               ],
             ),
-          ),
+          ),),
         ],
       ),
     );

@@ -1,5 +1,5 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_html/flutter_html.dart';
+import 'dart:ffi';
+
 import 'package:get/get.dart';
 import 'package:mindplex/features/blogs/controllers/blogs_controller.dart';
 import 'package:mindplex/features/blogs/models/blog_model.dart';
@@ -16,6 +16,40 @@ class LikeDislikeConroller extends GetxController {
   RxList currentEmoji = [
     "😅",
   ].obs;
+  RxBool isSendingFollowRequest = false.obs;
+
+  Future<void> interactionHandler(
+      {required Blog blog, required int index, required bool itIsLike}) async {
+    if (!itIsLike) {
+      if (blog.isUserDisliked.value == true) {
+        removePreviousInteraction(
+            blog: blog,
+            index: index,
+            articleSlug: blog.slug ?? "",
+            interction: "D");
+      } else if (blog.isUserDisliked.value == false) {
+        likeDislikeArticle(
+            blog: blog,
+            index: index,
+            articleSlug: blog.slug ?? "",
+            interction: "D");
+      }
+    } else {
+      if (blog.isUserLiked.value == true) {
+        removePreviousInteraction(
+            blog: blog,
+            index: index,
+            articleSlug: blog.slug ?? "",
+            interction: "L");
+      } else if (blog.isUserLiked.value == false) {
+        likeDislikeArticle(
+            blog: blog,
+            index: index,
+            articleSlug: blog.slug ?? "",
+            interction: "L");
+      }
+    }
+  }
 
   Future<void> likeDislikeArticle(
       {required int index,
@@ -51,26 +85,40 @@ class LikeDislikeConroller extends GetxController {
     }
   }
 
-  void reactWithEmoji(
-      {required int emojiIndex, required int blogIndex, required Blog blog}) {
+  void reactWithEmoji({
+    required int emojiIndex,
+    required int blogIndex,
+    required Blog blog,
+  }) {
     final BlogsController blogsController = Get.find();
 
     apiService.value.reactWithEmoji(
-        articleSlug: blog.slug ?? "", emoji_value: emojiCodes[emojiIndex]);
+      articleSlug: blog.slug ?? "",
+      emoji_value: emojiCodes[emojiIndex],
+    );
 
     blog.interactedEmoji.value = emojiCodes[emojiIndex];
-
-    blogsController.blogs[blogIndex] = blog;
-
     showEmoji.value = !showEmoji.value;
+    blogsController.blogs[blogIndex] = blog;
   }
 
   void addVote() {
     hasVoted.value = !hasVoted.value;
   }
 
-  void addToBookmark() {
+  Future<void> addToBookmark({
+    required int blogIndex,
+    required Blog blog,
+    required String articleSlug,
+  }) async {
+    apiService.value.addToBookmark(
+        articleSlug: blog.slug ?? '', hasBookmarked: hasBookMarked.value);
+
+    final BlogsController blogsController = Get.find();
+
+    blog.isBookmarked?.value = !(blog.isBookmarked?.value ?? false);
     hasBookMarked.value = !hasBookMarked.value;
+    blogsController.blogs[blogIndex] = blog;
   }
 
   Future<void> removePreviousInteraction(
@@ -90,5 +138,35 @@ class LikeDislikeConroller extends GetxController {
     blog.isUserDisliked.value = false;
     blog.isUserLiked.value = false;
     blogsController.blogs[index] = blog;
+  }
+
+  Future<void> followUnfollowBlogAuthor(
+      int index, String userName, bool isFollowing) async {
+    isSendingFollowRequest.value = true;
+    if (isFollowing) {
+      await unfollowBlogAuthor(index, userName);
+    } else {
+      await followBlogAuthor(index, userName);
+    }
+    isSendingFollowRequest.value = false;
+  }
+
+  Future<void> followBlogAuthor(int index, String userName) async {
+    final BlogsController blogsController = Get.find();
+//  -1 means the follow/unfollow action is not sent from blog detail page instead it is from profile page .
+    if (await apiService.value.followUser(userName)) {
+      if (index != -1)
+        blogsController.filteredBlogs[index].isFollowing!.value = true;
+    }
+  }
+
+  Future<void> unfollowBlogAuthor(int index, String userName) async {
+    final BlogsController blogsController = Get.find();
+
+    if (await apiService.value.unfollowUser(userName)) {
+//  -1 means the follow/unfollow action is not sent from blog detail page instead it is from profile page .
+      if (index != -1)
+        blogsController.filteredBlogs[index].isFollowing!.value = false;
+    }
   }
 }
