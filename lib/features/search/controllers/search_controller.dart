@@ -5,6 +5,7 @@ import 'package:mindplex/features/blogs/models/reputation_model.dart';
 import 'package:mindplex/features/search/services/search_api_service.dart';
 import 'package:mindplex/services/api_services.dart';
 import 'package:mindplex/utils/Toster.dart';
+import 'package:mindplex/utils/network/connection-info.dart';
 
 import '../../blogs/models/blog_model.dart';
 import '../../user_profile_settings/models/user_profile.dart';
@@ -38,6 +39,10 @@ class SearchPageController extends GetxController {
   final searchApiService = SearchApiService().obs;
   final apiService = ApiService().obs;
   RxInt startPosition = 0.obs;
+  ConnectionInfoImpl connectionChecker = Get.find();
+  RxBool isConnected = false.obs;
+
+  RxBool searchFailed = false.obs;
 
   @override
   void onInit() {
@@ -64,14 +69,35 @@ class SearchPageController extends GetxController {
   }
 
   void fetchPopularBlogs() async {
-    final res = await searchApiService.value.fetchSearchLanding();
+    searchFailed.value = false;
+    try {
+      isConnected.value = true;
+      if (!await connectionChecker.isConnected) {
+        throw NetworkException(
+            "Looks like there is problem with your connection.");
+      }
+      final res = await searchApiService.value.fetchSearchLanding();
 
-    popularPosts.value = res.blogs!;
-    loadReputation(popularPosts, 'popular');
-    categories.value = res.categories!;
-    isIntialLoading.value = false;
+      popularPosts.value = res.blogs!;
+      loadReputation(popularPosts, 'popular');
+      categories.value = res.categories!;
+      isIntialLoading.value = false;
 
-    isLoadingMore.value = false;
+      isLoadingMore.value = false;
+    } catch (e) {
+      if (e is NetworkException) {
+        isConnected.value = false;
+        Toster(
+            message: 'No Internet Connection', color: Colors.red, duration: 1);
+      } else {
+        print(e.toString());
+        searchFailed.value = true;
+        Toster(
+            message: 'Something is Wrong,Try Again !',
+            color: Colors.red,
+            duration: 1);
+      }
+    }
   }
 
   void loadMoreSearchResults(String query) async {
@@ -99,20 +125,40 @@ class SearchPageController extends GetxController {
   }
 
   void loadMoreUsers(String query) async {
-    if (isLoadingMoreUsers.value || reachedEndOfListSearchUser.value) {
-      return;
-    }
+    try {
+      isConnected.value = true;
+      if (!await connectionChecker.isConnected) {
+        throw NetworkException(
+            "Looks like there is problem with your connection.");
+      }
+      if (isLoadingMoreUsers.value || reachedEndOfListSearchUser.value) {
+        return;
+      }
 
-    isLoadingMoreUsers.value = true;
-    searchUserPage.value++; // Increment the page number
+      isLoadingMoreUsers.value = true;
+      searchUserPage.value++; // Increment the page number
 
-    final res = await searchApiService.value
-        .fetchSearchResponse(query, searchUserPage.value.toInt());
+      final res = await searchApiService.value
+          .fetchSearchResponse(query, searchUserPage.value.toInt());
 
-    if (res.users!.isEmpty) {
-      reachedEndOfListSearchUser.value = true;
-    } else {
-      userSearchResults.addAll(res.users!);
+      if (res.users!.isEmpty) {
+        reachedEndOfListSearchUser.value = true;
+      } else {
+        userSearchResults.addAll(res.users!);
+      }
+    } catch (e) {
+      if (e is NetworkException) {
+        isConnected.value = false;
+        Toster(
+            message: 'No Internet Connection', color: Colors.red, duration: 1);
+      } else {
+        print(e.toString());
+        searchFailed.value = true;
+        Toster(
+            message: 'Something is Wrong,Try Again !',
+            color: Colors.red,
+            duration: 1);
+      }
     }
 
     isLoadingMore.value = false;
@@ -133,26 +179,46 @@ class SearchPageController extends GetxController {
     searchPage.value = 1;
     searchUserPage.value = 1;
     startPosition.value = 0;
+    try {
+      isConnected.value = true;
+      if (!await connectionChecker.isConnected) {
+        throw NetworkException(
+            "Looks like there is problem with your connection.");
+      }
+      final res = await searchApiService.value
+          .fetchSearchResponse(query, searchPage.value.toInt());
 
-    final res = await searchApiService.value
-        .fetchSearchResponse(query, searchPage.value.toInt());
+      if (res.blogs!.length < 10) {
+        reachedEndOfListSearch.value = true;
+        if (res.blogs!.length > 1) {
+          searchPage++;
+        }
+      }
+      if (res.users!.length < 10) {
+        reachedEndOfListSearchUser.value = true;
+        if (res.users!.length > 1) {
+          searchUserPage++;
+        }
+      }
 
-    if (res.blogs!.length < 10) {
-      reachedEndOfListSearch.value = true;
-      if (res.blogs!.length > 1) {
-        searchPage++;
+      searchResults.value = res.blogs!;
+      loadReputation(res.blogs ?? [], 'search');
+
+      userSearchResults.value = res.users!;
+    } catch (e) {
+      if (e is NetworkException) {
+        isConnected.value = false;
+        Toster(
+            message: 'No Internet Connection', color: Colors.red, duration: 1);
+      } else {
+        print(e.toString());
+        searchFailed.value = true;
+        Toster(
+            message: 'Something is Wrong,Try Again !',
+            color: Colors.red,
+            duration: 1);
       }
     }
-    if (res.users!.length < 10) {
-      reachedEndOfListSearchUser.value = true;
-      if (res.users!.length > 1) {
-        searchUserPage++;
-      }
-    }
-
-    searchResults.value = res.blogs!;
-    loadReputation(res.blogs ?? [], 'search');
-    userSearchResults.value = res.users!;
 
     searchQuery.value = query;
 
@@ -166,10 +232,25 @@ class SearchPageController extends GetxController {
   Future<void> followUnfollowUser(
       int index, String userName, bool isFollowing) async {
     getSearchedUsers[index].isSendingFollowRequest!.value = true;
-    if (isFollowing) {
-      await unfollowUser(index, userName);
-    } else {
-      await followUser(index, userName);
+
+    try {
+      if (!await connectionChecker.isConnected) {
+        throw NetworkException(
+            "Looks like there is problem with your connection.");
+      }
+      if (isFollowing) {
+        await unfollowUser(index, userName);
+      } else {
+        await followUser(index, userName);
+      }
+    } catch (e) {
+      if (e is NetworkException) {
+        isConnected.value = false;
+        Toster(
+            message: 'No Internet Connection', color: Colors.red, duration: 1);
+      } else {
+        Toster(message: 'Failed To Follow', color: Colors.red, duration: 1);
+      }
     }
     getSearchedUsers[index].isSendingFollowRequest!.value = false;
   }

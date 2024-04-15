@@ -1,117 +1,138 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:mindplex/features/FAQ/model/FaqList.dart';
-import 'package:mindplex/features/FAQ/model/faqGroups.dart';
-import 'package:mindplex/features/FAQ/model/faqModel.dart';
+import 'package:mindplex/features/FAQ/model/FaqAnswer.dart';
+import 'package:mindplex/features/FAQ/model/faqGroup.dart';
+import 'package:mindplex/features/FAQ/model/faqQuestion.dart';
+import 'package:mindplex/features/FAQ/services/FaqSerivces.dart';
+import 'package:mindplex/utils/AppError.dart';
+import 'package:mindplex/utils/Toster.dart';
+import 'package:mindplex/utils/status.dart';
 
 class FaqController extends GetxController {
-  RxInt currentIndex = (-1).obs;
-  RxInt viewMore = (-1).obs;
-
-  final faqGroups = [
-    FaqGroupModel(
-        title: "General",
-        faqLists: [
-          FaqListModel(
-              title: "getStarted",
-              faqs: [
-                Faq(
-                    question: "Using Mindplex",
-                    id: 1,
-                    answer:
-                        "You can use Mindplex by following the steps below: \n1. Create an account \n2. Verify your account \n3. Start using Mindplex"),
-                Faq(
-                    question: "How to Create Mindplex Account",
-                    id: 2,
-                    answer:
-                        "You can create a Mindplex account by following the steps below: \n1. Visit the Mindplex website \n2. Click on the 'Create Account' button \n3. Fill in the required details \n4. Click on the 'Create Account' button")
-              ],
-              id: 1),
-          FaqListModel(
-              title: "login",
-              faqs: [
-                Faq(
-                    question: "Using Mindplex",
-                    id: 3,
-                    answer:
-                        "You can use Mindplex by following the steps below: \n1. Create an account \n2. Verify your account \n3. Start using Mindplex"),
-                Faq(
-                    question: "How to Create Mindplex Account",
-                    id: 4,
-                    answer:
-                        "You can create a Mindplex account by following the steps below: \n1. Visit the Mindplex website \n2. Click on the 'Create Account' button \n3. Fill in the required details \n4. Click on the 'Create Account' button"),
-                Faq(
-                    question: "Mindplex tokens",
-                    id: 5,
-                    answer:
-                        "Mindplex tokens are the official currency of Mindplex. You can use them to buy products and services on the Mindplex platform."),
-                Faq(
-                    question: "MPXR and how to use it",
-                    id: 6,
-                    answer:
-                        "MPXR is a digital asset that can be used to buy products and services on the Mindplex platform. You can use it by following the steps below: \n1. Buy MPXR \n2. Use MPXR to buy products and services on the Mindplex platform"),
-              ],
-              id: 3)
-        ],
-        id: 2,
-        icon: Icon(Icons.masks_rounded, size: 50, color: Colors.white70)),
-    FaqGroupModel(
-        title: "Tokenomics",
-        faqLists: [
-          FaqListModel(
-              title: "Tokenomics",
-              faqs: [
-                Faq(
-                    question: "Mindplex tokens",
-                    id: 7,
-                    answer:
-                        "Mindplex tokens are the official currency of Mindplex. You can use them to buy products and services on the Mindplex platform."),
-                Faq(
-                    question: "MPXR and how to use it",
-                    id: 8,
-                    answer:
-                        "MPXR is a digital asset that can be used to buy products and services on the Mindplex platform. You can use it by following the steps below: \n1. Buy MPXR \n2. Use MPXR to buy products and services on the Mindplex platform")
-              ],
-              id: 2)
-        ],
-        id: 3,
-        icon: Icon(Icons.hail, size: 50, color: Colors.white70)),
-    FaqGroupModel(
-        title: "Mindplex Recommendation",
-        faqLists: [
-          FaqListModel(
-              title: "Tokenomics",
-              faqs: [
-                Faq(
-                    question: "Mindplex tokens",
-                    id: 9,
-                    answer:
-                        "Mindplex tokens are the official currency of Mindplex. You can use them to buy products and services on the Mindplex platform."),
-                Faq(
-                    question: "MPXR and how to use it",
-                    id: 10,
-                    answer:
-                        "MPXR is a digital asset that can be used to buy products and services on the Mindplex platform. You can use it by following the steps below: \n1. Buy MPXR \n2. Use MPXR to buy products and services on the Mindplex platform")
-              ],
-              id: 2)
-        ],
-        id: 4,
-        icon: Icon(Icons.ac_unit_rounded, size: 50, color: Colors.white70)),
-  ];
-
-  void changeIndex(int index) {
-    if (currentIndex.value == index) {
-      currentIndex.value = -1;
-      return;
-    }
-    currentIndex(index);
+  void onInit() {
+    super.onInit();
+    scrollController.addListener(() {
+      if (!isReachedEndOfList &&
+          searchStatus != Status.loading &&
+          searchStatus != Status.loadingMore &&
+          scrollController.position.pixels >=
+              scrollController.position.maxScrollExtent) {
+        searchFaq();
+      }
+    });
   }
 
-  void toggleView(int index) {
-    if (viewMore.value == index) {
-      viewMore.value = -1;
+  RxString currentFaq = ("").obs;
+  RxString viewMore = ("").obs;
+
+  RxList<FaqGroup> faqGroups = <FaqGroup>[].obs;
+  Rx<Status> status = Status.unknown.obs;
+  Rx<Status> statusAnswer = Status.unknown.obs;
+  RxList<FaqAnswer> faqAnswers = <FaqAnswer>[].obs;
+  RxString errorMessage = "Something is very wrong!".obs;
+  FaqService faqService = FaqService();
+
+  RxList<FaqQuestion> faqSearchResult = <FaqQuestion>[].obs;
+  Rx<Status> searchStatus = Status.unknown.obs;
+  RxString searchQuery = "".obs;
+  ScrollController scrollController = ScrollController();
+  bool isReachedEndOfList = false;
+  RxInt searchPage = 1.obs;
+  RxBool searchMode = false.obs;
+
+  void searchFaq([String? search]) async {
+    if (search != null) {
+      searchQuery(search);
+      searchPage(1);
+      faqSearchResult([]);
+      isReachedEndOfList = false;
+    }
+    ;
+
+    if (searchPage.value == 1) {
+      searchStatus(Status.loading);
+    } else {
+      searchStatus(Status.loadingMore);
+    }
+
+    //Pp searchStatus(Status.loading);
+
+    try {
+      List<FaqQuestion> res =
+          await faqService.getFaqBySearch(searchQuery.value, searchPage.value);
+      if (res.isEmpty) {
+        isReachedEndOfList = true;
+      } else {
+        faqSearchResult.addAll(res);
+
+        print([search, faqSearchResult, searchStatus, searchPage]);
+      }
+
+      searchStatus(Status.success);
+      print(searchStatus);
+
+      searchPage += 1;
+    } catch (e) {
+      searchStatus(Status.error);
+
+      if (e is AppError) {
+        errorMessage(e.message);
+      }
+      Toster(message: errorMessage.value);
+    }
+
+    // update();
+  }
+
+  void loadFaq() async {
+    try {
+      status(Status.loading);
+      faqGroups([]);
+      List<FaqGroup> res = await faqService.getFaq();
+      faqGroups.addAll(res);
+      status(Status.success);
+    } catch (e) {
+      status(Status.error);
+      if (e is AppError) {
+        errorMessage(e.message);
+      }
+      Toster(message: errorMessage.value);
+    }
+  }
+
+  void loadAnswer(String slug) async {
+    try {
+      statusAnswer(Status.loading);
+      faqAnswers([]);
+      List<FaqAnswer> res = await faqService.getFaqBySlug(slug);
+      faqAnswers.addAll(res);
+      statusAnswer(Status.success);
+    } catch (e) {
+      statusAnswer(Status.error);
+      if (e is AppError) {
+        errorMessage(e.message);
+      }
+      Toster(message: errorMessage.value);
+    }
+  }
+
+  void toggleView(String slug) {
+    if (viewMore.value == slug) {
+      viewMore.value = "";
       return;
     }
-    viewMore(index);
+    viewMore(slug);
+  }
+
+  changeSearchMode(bool mode) {
+    if (mode == false) {
+      searchQuery("");
+      searchStatus(Status.unknown);
+      searchPage(1);
+      faqSearchResult([]);
+      faqGroups([]);
+      isReachedEndOfList = false;
+    }
+    searchMode(mode);
   }
 }
