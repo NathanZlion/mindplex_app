@@ -4,6 +4,7 @@ import 'package:flutter_highlight/themes/github.dart';
 import 'package:flutter_html/flutter_html.dart' as html;
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:mindplex/features/blogs/models/blog_model.dart';
+import 'package:mindplex/utils/link_detector_and_anchor_wrapper.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 
@@ -37,7 +38,7 @@ class BlogContentDisplay extends StatelessWidget {
                 child: Text(
                   element.content!.replaceAll('&nbsp;', ''),
                   style: const TextStyle(
-                    fontSize: 30.0,
+                    fontSize: 22.0,
                     fontWeight: FontWeight.bold,
                     color: Color.fromARGB(255, 73, 255, 179),
                   ),
@@ -53,7 +54,7 @@ class BlogContentDisplay extends StatelessWidget {
                 child: Text(
                   element.content!.replaceAll('&nbsp;', ''),
                   style: const TextStyle(
-                    fontSize: 25.0,
+                    fontSize: 20.0,
                     fontWeight: FontWeight.bold,
                     color: Color.fromARGB(255, 73, 255, 179),
                   ),
@@ -69,7 +70,7 @@ class BlogContentDisplay extends StatelessWidget {
                 child: Text(
                   element.content!.replaceAll('&nbsp;', ''),
                   style: const TextStyle(
-                    fontSize: 20.0,
+                    fontSize: 18.0,
                     fontWeight: FontWeight.bold,
                     color: Color.fromARGB(255, 73, 255, 179),
                   ),
@@ -127,12 +128,18 @@ class BlogContentDisplay extends StatelessWidget {
             case 'p':
               return Padding(
                   padding: const EdgeInsets.symmetric(vertical: 0.0),
-                  child: html.Html(
-                    onLinkTap: (url, attributes, element) {
-                      launchUrl(Uri.parse(url ?? ""));
-                    },
-                    style: {"*": html.Style(color: Colors.white)},
-                    data: element.content!,
+                  child: SelectionArea(
+                    child: html.Html(
+                      onLinkTap: (url, attributes, element) {
+                        launchUrl(Uri.parse(url ?? ""));
+                      },
+                      style: {
+                        "*": html.Style(color: Colors.white),
+                        "a":
+                            html.Style(color: Color.fromARGB(255, 5, 211, 207)),
+                      },
+                      data: processHtml(element.content!),
+                    ),
                   ));
 
             case 'blockquote':
@@ -251,15 +258,19 @@ class YouTubeVideoPlayer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // TODO implment more features to the player
     YoutubePlayerController controller = YoutubePlayerController(
       initialVideoId: YoutubePlayer.convertUrlToId(videoLink) ?? "",
       flags: YoutubePlayerFlags(
+        showLiveFullscreenButton: false,
         autoPlay: false,
-        mute: true,
+        mute: false,
       ),
     );
     return YoutubePlayer(
+      bottomActions: [
+        CurrentPosition(),
+        ProgressBar(isExpanded: true),
+      ],
       controller: controller,
       progressColors: ProgressBarColors(
           handleColor: Colors.tealAccent[400], playedColor: Colors.red),

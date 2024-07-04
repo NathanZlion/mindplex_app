@@ -3,11 +3,14 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:get/get.dart';
+import 'package:mindplex/features/blogs/cache_service/blog_cache_service.dart';
 import 'package:mindplex/features/blogs/models/blog_model.dart';
 import 'package:mindplex/features/blogs/models/reputation_model.dart';
 import 'package:mindplex/features/blogs/models/social_feed_setting_model.dart';
 import 'package:mindplex/services/api_services.dart';
 import 'package:mindplex/utils/Toster.dart';
+import 'package:mindplex/utils/awesome_snackbar.dart';
+import 'package:mindplex/utils/snackbar_constants.dart';
 
 import '../../../utils/network/connection-info.dart';
 
@@ -53,34 +56,61 @@ class BlogsController extends GetxController {
   };
 
   final postFormatMaps = {
-    'text': 'Read',
+    'text': 'Magazine',
     'video': 'Watch',
-    'audio': 'Listen',
+    'audio': 'Podcast',
   };
 
   ScrollController scrollController = ScrollController();
   bool reachedEndOfList = false;
   final apiSerivice = ApiService().obs;
+  final blogCacheService = BlogCacheService().obs;
+  double scrollDistance = 0.0;
+  double previousOffset = 0.0;
+  double currentOffset = 0.0;
+
+  ScrollDirection scrollDirection = ScrollDirection.forward;
 
   @override
   void onInit() {
     super.onInit();
 
     scrollController.addListener(() {
-      if (scrollController.position.userScrollDirection ==
-          ScrollDirection.reverse) {
-        showSocialFeedForm.value = false;
-      } else {
-        showSocialFeedForm.value = true;
-      }
+      animateFormAppearance();
 
       if (!reachedEndOfList &&
           scrollController.position.pixels >=
               scrollController.position.maxScrollExtent - 250) {
-        // Load more data
         loadMoreBlogs();
       }
     });
+  }
+
+  void animateFormAppearance() {
+    currentOffset = scrollController.position.pixels;
+    if (scrollDirection == scrollController.position.userScrollDirection) {
+      scrollDistance = scrollDistance + (currentOffset - previousOffset).abs();
+
+      if (scrollDistance >= 75) {
+        if (scrollController.position.userScrollDirection ==
+            ScrollDirection.reverse) {
+          showSocialFeedForm.value = false;
+        } else {
+          showSocialFeedForm.value = true;
+        }
+      }
+    } else {
+      scrollDistance = 0.0;
+      scrollDirection = scrollDirection == ScrollDirection.forward
+          ? ScrollDirection.reverse
+          : ScrollDirection.forward;
+    }
+    previousOffset = currentOffset;
+  }
+
+  Future<BuildContext> getContext() async {
+    BuildContext? context = Get.context;
+    return context!;
   }
 
   void loadMoreBlogs() async {
@@ -93,9 +123,12 @@ class BlogsController extends GetxController {
       if (isLoadingMore.value || reachedEndOfList) {
         return;
       }
+      String cacheKey =
+          "${post_type.value}/${recommender.value}/${post_format.value}";
 
       isLoadingMore.value = true;
       page.value++; // Increment the page number
+
       final res = await apiSerivice.value.loadBlogs(
           post_type: post_type.value,
           recommender: recommender.value,
@@ -111,11 +144,12 @@ class BlogsController extends GetxController {
         blogs.addAll(res);
 
         loadReputation(res);
+        blogCacheService.value.addToCache(cacheKey, res);
       }
 
       isLoadingMore.value = false;
 
-      update(); // Trigger UI update
+      update();
     } catch (e) {
       if (e is NetworkException) {
         canLoadMoreBlogs.value = false;
@@ -124,7 +158,6 @@ class BlogsController extends GetxController {
   }
 
   void changeTopics({required String topicCategory}) async {
-    print(topicCategory);
     post_format.value = topicCategory;
     page.value = 1;
     fetchBlogs();
@@ -151,7 +184,7 @@ class BlogsController extends GetxController {
     fetchBlogs();
   }
 
-  void fetchBlogs() async {
+  void fetchBlogs({bool refreshing = false}) async {
     try {
       isConnected.value = true;
       if (!await connectionChecker.isConnected) {
@@ -161,30 +194,48 @@ class BlogsController extends GetxController {
       newPostTypeLoading.value = true;
       isLoadingMore.value = true;
       canLoadMoreBlogs.value = true;
-      page.value = 1;
+
       startPosition.value = 0;
-      final res = await apiSerivice.value.loadBlogs(
-          post_type: post_type.value,
-          recommender: recommender.value,
-          post_format: post_format.value,
-          page: page.value.toInt());
-      if (res.isEmpty) reachedEndOfList = true;
-      blogs.value = res;
-      loadReputation(res);
+      String cacheKey =
+          "${post_type.value}/${recommender.value}/${post_format.value}";
+
+      if (!refreshing && blogCacheService.value.isInCache(cacheKey)) {
+        final res = blogCacheService.value.getFromCache(cacheKey);
+        page.value = (res.length ~/ 10) + 1;
+        blogs.value = res;
+        loadReputation(res);
+        if (res.isEmpty) reachedEndOfList = true;
+      } else {
+        final res = await apiSerivice.value.loadBlogs(
+            post_type: post_type.value,
+            recommender: recommender.value,
+            post_format: post_format.value,
+            page: page.value.toInt());
+        if (res.isEmpty) reachedEndOfList = true;
+
+        blogs.value = res;
+        loadReputation(res);
+        blogCacheService.value.removeFromCache(cacheKey);
+        if (post_type != "social")
+          blogCacheService.value.addToCache(cacheKey, blogs);
+      }
 
       isLoadingMore.value = false;
       newPostTypeLoading.value = false;
     } catch (e) {
       if (e is NetworkException) {
         isConnected.value = false;
-        Toster(
-            message: 'No Internet Connection', color: Colors.red, duration: 1);
+        showSnackBar(
+            context: await getContext(),
+            title: SnackBarConstantTitle.failureTitle,
+            message: SnackBarConstantMessage.noInternetConnection,
+            type: "failure");
       } else {
-        print(e.toString());
-        Toster(
-            message: 'Something is Wrong,Try Again !',
-            color: Colors.red,
-            duration: 1);
+        showSnackBar(
+            context: await getContext(),
+            title: SnackBarConstantTitle.failureTitle,
+            message: SnackBarConstantMessage.unKnowenError,
+            type: "failure");
       }
       isLoadingMore.value = false;
       canLoadMoreBlogs.value = false;
@@ -208,7 +259,11 @@ class BlogsController extends GetxController {
           fetchedBlogs: fetchedBlogs, reputations: reputations);
     } catch (e) {
       if (e is DioException) {
-        Toster(message: 'Failed To Load Mpxr', color: Colors.red, duration: 3);
+        showSnackBar(
+            context: await getContext(),
+            title: SnackBarConstantTitle.failureTitle,
+            message: SnackBarConstantMessage.mpxrLoadingFailure,
+            type: "failure");
       }
     }
 
@@ -234,7 +289,6 @@ class BlogsController extends GetxController {
   }
 
   void filterBlogsByRecommender({required String category}) {
-    print(category);
     reachedEndOfList = false;
     page.value = 1;
 
@@ -252,8 +306,8 @@ class BlogsController extends GetxController {
     } else {
       recommender.value = recommenderMaps[category] as String;
     }
-
     fetchBlogs();
+    animateScrollPosition();
   }
 
   void filterBlogsByPostType({required String postFormat}) {
@@ -277,6 +331,10 @@ class BlogsController extends GetxController {
     final interactions = await apiSerivice.value.fetchUserInteraction(
         articleSlug: articleSlug, interactionType: interactionType);
     return interactions;
+  }
+
+  void animateScrollPosition() {
+    scrollController.jumpTo(0);
   }
 
   List<Blog> get filteredBlogs {

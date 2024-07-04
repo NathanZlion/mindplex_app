@@ -35,7 +35,11 @@ class DrawerButtonController extends GetxController {
     '/privacyPolicyPage',
     '/searchResultPage',
     '/generalSettingsPage',
-    '/faq'
+    '/faq',
+    '/constitutionPage',
+    '/contributePage',
+    '/privacyPage',
+    '/termsPage'
   };
   final currentDrawerType = DrawerType.read.obs;
 
@@ -53,10 +57,14 @@ class DrawerButtonController extends GetxController {
       );
       return;
     } else if (drawerModel.pageName == AppRoutes.landingPage) {
-      Get.back();
-      _loadContents(drawerModel.postType!, drawerModel.postFormat!);
+      if (_authController.checkUserPrivellege(
+        requiresPrivilege: drawerModel.requiresPrivilege,
+      )) {
+        Get.back();
+        _loadContents(drawerModel.postType!, drawerModel.postFormat!);
 
-      _pageNavigationController.navigatePage(0);
+        _pageNavigationController.navigatePage(0);
+      }
     } else if (_authController.checkUserPrivellege(
       requiresPrivilege: drawerModel.requiresPrivilege,
     )) {

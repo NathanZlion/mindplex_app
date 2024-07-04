@@ -5,6 +5,7 @@ import 'package:mindplex/features/blogs/view/widgets/interaction_statistics_widg
 import 'package:mindplex/features/blogs/view/widgets/interactions_overlay.dart';
 import 'package:mindplex/features/blogs/view/widgets/social_post_time_remaining_widget.dart';
 import 'package:mindplex/utils/double_to_string_convertor.dart';
+import 'package:mindplex/utils/user_avatar_widget.dart';
 
 import '../../../../routes/app_routes.dart';
 import '../../../authentication/controllers/auth_controller.dart';
@@ -34,27 +35,24 @@ class SocialFeedCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             GestureDetector(
-              onTap: () {
-                //  will be modified in detail
-                //
-                if (authController.isGuestUser.value) {
-                  authController.guestReminder(context);
-                } else {
-                  Get.toNamed(AppRoutes.profilePage, parameters: {
-                    "me": "notme",
-                    "username":
-                        blogsController.filteredBlogs[index].authorUsername ??
-                            ""
-                  });
-                }
-              },
-              child: CircleAvatar(
-                backgroundImage: NetworkImage(
-                    blogsController.filteredBlogs[index].authorAvatar ?? ""),
-                radius: 20,
-                backgroundColor: Colors.black,
-              ),
-            ),
+                onTap: () {
+                  //  will be modified in detail
+                  //
+                  if (authController.isGuestUser.value) {
+                    authController.guestReminder(context);
+                  } else {
+                    Get.toNamed(AppRoutes.profilePage, parameters: {
+                      "me": "notme",
+                      "username":
+                          blogsController.filteredBlogs[index].authorUsername ??
+                              ""
+                    });
+                  }
+                },
+                child: UserAvatarWidget(
+                    imageUrl:
+                        blogsController.filteredBlogs[index].authorAvatar ?? "",
+                    radius: 20)),
             SizedBox(
               width: 10,
             ),
@@ -177,11 +175,11 @@ class SocialFeedCard extends StatelessWidget {
                                 color: Colors.green[300],
                               ))
                           : Text(
-                              " MPXR ${(blog.reputation.value != null && blog.reputation.value!.postRep != null) ? numberToString(numberValue: blog.reputation.value!.postRep!, decimalPlace: 5) : '  -'}",
+                              "Post MPXR ${(blog.reputation.value != null && blog.reputation.value!.postRep != null) ? numberToString(numberValue: blog.reputation.value!.postRep!, decimalPlace: 5) : '  -'}",
                               // " MPXR ${blogsController.filteredBlogs[index].reputation.value != null ? blogsController.filteredBlogs[index].reputation.value!.postRep!.toStringAsFixed(5) : "-"}",
                               style: TextStyle(
                                   color: Colors.white,
-                                  fontWeight: FontWeight.bold),
+                                  fontWeight: FontWeight.w500),
                             ),
                     ),
                   Divider(

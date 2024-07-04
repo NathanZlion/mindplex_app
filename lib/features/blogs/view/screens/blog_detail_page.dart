@@ -1,6 +1,7 @@
 import 'dart:ffi';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_html/flutter_html.dart';
 import 'package:get/get.dart';
 import 'package:mindplex/features/blogs/controllers/blog_time_spent_controller.dart';
 import 'package:mindplex/features/blogs/view/widgets/author_tile_widget.dart';
@@ -134,7 +135,7 @@ class _DetailsPageState extends State<DetailsPage> {
                                   widget.details.postTitle ?? "",
                                   textAlign: TextAlign.center,
                                   style: const TextStyle(
-                                    fontSize: 25.0,
+                                    fontSize: 23.0,
                                     fontWeight: FontWeight.bold,
                                     color: Color.fromARGB(255, 73, 255, 179),
                                   ),
@@ -188,29 +189,34 @@ class _DetailsPageState extends State<DetailsPage> {
                                 ],
                               ),
                               Container(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: 5.0,
-                                ),
-                                child: Text(
-                                  widget.details.overview ?? "",
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    color: Colors.white,
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: 5.0,
                                   ),
-                                ),
-                              ),
+                                  child: Html(
+                                    data: widget.details.overview ?? "",
+                                    style: {"*": Style(color: Colors.white)},
+                                  )
+                                  // child: Text(
+                                  //   widget.details.overview ?? "",
+                                  //   style: const TextStyle(
+                                  //     fontSize: 16,
+                                  //     color: Colors.white,
+                                  //   ),
+                                  // ),
+                                  ),
                               Divider(
                                 thickness: 2,
                                 color: Colors.white,
                               ),
-                              widget.details.banner != ""
-                                  ? Container(
-                                      height: 150,
-                                      width: 600,
-                                      child: Image.network(
-                                          fit: BoxFit.cover,
-                                          widget.details.banner ?? ""))
-                                  : Container()
+                              if (widget.details.postTypeFormat != 'audio')
+                                widget.details.banner != ""
+                                    ? Container(
+                                        height: 150,
+                                        width: 600,
+                                        child: Image.network(
+                                            fit: BoxFit.cover,
+                                            widget.details.banner ?? ""))
+                                    : Container()
                             ],
                           ),
                         ),
@@ -292,11 +298,8 @@ class _DetailsPageState extends State<DetailsPage> {
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      SizedBox(
-                        width: 8,
-                      ),
-                      IconButton(
-                        onPressed: () {
+                      GestureDetector(
+                        onTap: () {
                           if (authController.isGuestUser.value) {
                             authController.guestReminder(context);
                           } else {
@@ -306,7 +309,7 @@ class _DetailsPageState extends State<DetailsPage> {
                                 itIsLike: true);
                           }
                         },
-                        icon: (widget.details.isUserLiked.value)
+                        child: (widget.details.isUserLiked.value)
                             ? Icon(
                                 Icons.thumb_up_off_alt_rounded,
                                 color: Color.fromARGB(255, 73, 255, 179),
@@ -316,11 +319,8 @@ class _DetailsPageState extends State<DetailsPage> {
                                 color: Colors.white,
                               ),
                       ),
-                      SizedBox(
-                        width: 8,
-                      ),
-                      IconButton(
-                        onPressed: () {
+                      GestureDetector(
+                        onTap: () {
                           if (authController.isGuestUser.value) {
                             authController.guestReminder(context);
                           } else {
@@ -332,7 +332,7 @@ class _DetailsPageState extends State<DetailsPage> {
                             ;
                           }
                         },
-                        icon: widget.details.isUserDisliked.value
+                        child: widget.details.isUserDisliked.value
                             ? Icon(
                                 Icons.thumb_down,
                                 color: const Color.fromARGB(255, 230, 96, 86),
@@ -341,9 +341,6 @@ class _DetailsPageState extends State<DetailsPage> {
                                 Icons.thumb_down_off_alt_outlined,
                                 color: Colors.white,
                               ),
-                      ),
-                      SizedBox(
-                        width: 8,
                       ),
                       GestureDetector(
                         onTap: () {
@@ -354,9 +351,6 @@ class _DetailsPageState extends State<DetailsPage> {
                           Icons.share_outlined,
                           color: Colors.white,
                         ),
-                      ),
-                      SizedBox(
-                        width: 8,
                       ),
                       GestureDetector(
                         onTap: () {
@@ -376,9 +370,6 @@ class _DetailsPageState extends State<DetailsPage> {
                           ),
                           label: Text(widget.details.comments.toString()),
                         ),
-                      ),
-                      SizedBox(
-                        width: 8,
                       ),
                       GestureDetector(
                         onTap: () {
@@ -401,9 +392,6 @@ class _DetailsPageState extends State<DetailsPage> {
                                 ),
                         ),
                       ),
-                      SizedBox(
-                        width: 8,
-                      ),
                       GestureDetector(
                         onTap: () {
                           if (authController.isGuestUser.value) {
@@ -418,7 +406,7 @@ class _DetailsPageState extends State<DetailsPage> {
                         },
                         child: Tooltip(
                           message: voteMessage,
-                                  child: Obx(
+                          child: Obx(
                             () => widget.details.isVotted.value != null &&
                                     widget.details.isVotted.value == true
                                 ? Icon(
@@ -431,9 +419,6 @@ class _DetailsPageState extends State<DetailsPage> {
                                   ),
                           ),
                         ),
-                      ),
-                      SizedBox(
-                        width: 8,
                       ),
                       GestureDetector(
                         onTap: () async {
@@ -455,9 +440,6 @@ class _DetailsPageState extends State<DetailsPage> {
                                 : Colors.white,
                           ),
                         ),
-                      ),
-                      SizedBox(
-                        width: 8,
                       ),
                     ],
                   ),

@@ -8,6 +8,7 @@ import 'package:mindplex/features/blogs/view/widgets/blog_thumbnail_image_widget
 import 'package:mindplex/features/blogs/view/widgets/interaction_statistics_widget.dart';
 import 'package:mindplex/utils/colors.dart';
 import 'package:mindplex/utils/double_to_string_convertor.dart';
+import 'package:mindplex/utils/user_avatar_widget.dart';
 
 import '../../controllers/blogs_controller.dart';
 import '../../../../routes/app_routes.dart';
@@ -53,23 +54,11 @@ class BlogCard extends StatelessWidget {
                       });
                     }
                   },
-                  child: CircleAvatar(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(25),
-                      child: CachedNetworkImage(
-                        imageUrl:
-                            blogsController.filteredBlogs[index].authorAvatar ??
-                                "",
-                        placeholder: (context, url) =>
-                            Image.asset('assets/images/user_avatar.png'),
-                        errorWidget: (context, url, error) =>
-                            Image.asset('assets/images/user_avatar.png'),
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                    radius: 20,
-                    backgroundColor: Colors.white,
-                  ),
+                  child: UserAvatarWidget(
+                      radius: 20,
+                      imageUrl:
+                          blogsController.filteredBlogs[index].authorAvatar ??
+                              ""),
                 ),
                 Expanded(
                   child: GestureDetector(
@@ -122,10 +111,11 @@ class BlogCard extends StatelessWidget {
                                           ),
                                   ),
                                   Spacer(),
-                                  Icon(
-                                    Icons.more_horiz,
-                                    color: Colors.white,
-                                  )
+                                  SizedBox()
+                                  // Icon(
+                                  //   Icons.more_horiz,
+                                  //   color: Colors.white,
+                                  // )
                                 ],
                               ),
                               Text(

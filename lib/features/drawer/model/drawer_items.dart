@@ -25,23 +25,23 @@ class DrawerItems {
     // ),
     DrawerModel(
       icon: Icons.description_outlined,
-      drawerName: "Read",
+      drawerName: "Magazine",
       pageName: AppRoutes.landingPage,
       drawerType: DrawerType.read,
       postType: "articles",
       postFormat: "text",
     ),
-    DrawerModel(
-      icon: Icons.videocam,
-      drawerName: "Watch",
-      pageName: AppRoutes.landingPage,
-      drawerType: DrawerType.watch,
-      postType: "articles",
-      postFormat: "video",
-    ),
+    // DrawerModel(
+    //   icon: Icons.videocam,
+    //   drawerName: "Watch",
+    //   pageName: AppRoutes.landingPage,
+    //   drawerType: DrawerType.watch,
+    //   postType: "articles",
+    //   postFormat: "video",
+    // ),
     DrawerModel(
       icon: Icons.headphones,
-      drawerName: "Listen",
+      drawerName: "Podcast",
       pageName: AppRoutes.landingPage,
       drawerType: DrawerType.listen,
       postType: "articles",
@@ -78,6 +78,7 @@ class DrawerItems {
       drawerType: DrawerType.social,
       postType: "social",
       postFormat: "all",
+      requiresPrivilege: true,
     ),
     DrawerModel(
       icon: Icons.help_outline,
@@ -96,6 +97,31 @@ class DrawerItems {
       drawerName: "About us",
       drawerType: DrawerType.about,
       pageName: AppRoutes.aboutPage,
+    ),
+
+    DrawerModel(
+      icon: Icons.edit_document,
+      drawerName: "Contribute",
+      drawerType: DrawerType.contstitution,
+      pageName: AppRoutes.contributePage,
+    ),
+    DrawerModel(
+      icon: Icons.format_align_justify,
+      drawerName: "Constitution",
+      drawerType: DrawerType.contstitution,
+      pageName: AppRoutes.constitutionPage,
+    ),
+    DrawerModel(
+      icon: Icons.privacy_tip_outlined,
+      drawerName: "Terms",
+      drawerType: DrawerType.contstitution,
+      pageName: AppRoutes.termsPage,
+    ),
+    DrawerModel(
+      icon: Icons.privacy_tip,
+      drawerName: "Privacy",
+      drawerType: DrawerType.contstitution,
+      pageName: AppRoutes.privacyPage,
     ),
   ];
 }
